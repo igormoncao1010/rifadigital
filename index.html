@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rifa Digital - Supabase</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="auth-screen" id="auth-screen">
+        <div class="auth-hero">
+          <p class="eyebrow">Rifa Digital</p>
+          <h1>Venda com todos os vendedores no mesmo banco</h1>
+          <p>
+            Login por vendedor, numeros unicos para toda a campanha, ranking de vendas e vouchers
+            prontos para cupom 58mm.
+          </p>
+        </div>
+
+        <form class="card auth-card" id="login-form">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Acesso</p>
+              <h2>Entrar como vendedor</h2>
+            </div>
+          </div>
+          <label>
+            Email
+            <input id="login-email" type="email" autocomplete="email" required />
+          </label>
+          <label>
+            Senha
+            <input id="login-password" type="password" autocomplete="current-password" required />
+          </label>
+          <button class="button primary full" type="submit">Entrar</button>
+          <p class="form-note" id="config-warning"></p>
+        </form>
+      </section>
+
+      <section class="main-app hidden" id="main-app">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Painel da rifa</p>
+            <h1>Emissao e ranking</h1>
+          </div>
+          <div class="top-actions">
+            <div class="status-pill">
+              <span id="available-count">100.000</span>
+              <small>numeros disponiveis</small>
+            </div>
+            <div class="seller-pill">
+              <strong id="seller-name">Vendedor</strong>
+              <small id="seller-role">seller</small>
+            </div>
+            <button class="button light" id="logout-button" type="button">Sair</button>
+          </div>
+        </header>
+
+        <nav class="tabs" aria-label="Modulos do sistema">
+          <button class="tab active" type="button" data-tab="issue-panel">Emitir</button>
+          <button class="tab" type="button" data-tab="validate-panel">Validar</button>
+          <button class="tab" type="button" data-tab="ranking-panel">Ranking</button>
+          <button class="tab" type="button" data-tab="records-panel">Registros</button>
+          <button class="tab admin-only" type="button" data-tab="admin-panel">Vendedores</button>
+        </nav>
+
+        <section class="panel active" id="issue-panel">
+          <div class="dashboard-grid">
+            <form class="card" id="issue-form">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Cliente</p>
+                  <h2>Dados da compra</h2>
+                </div>
+              </div>
+
+              <label>
+                Nome completo
+                <input id="buyer-name" name="name" type="text" autocomplete="name" required />
+              </label>
+
+              <div class="two-columns">
+                <label>
+                  Telefone
+                  <input id="buyer-phone" name="phone" type="tel" autocomplete="tel" required />
+                </label>
+                <label>
+                  CPF
+                  <input id="buyer-cpf" name="cpf" type="text" inputmode="numeric" required />
+                </label>
+              </div>
+
+              <label>
+                Email
+                <input id="buyer-email" name="email" type="email" autocomplete="email" required />
+              </label>
+
+              <div class="two-columns">
+                <label>
+                  Quantidade
+                  <input id="ticket-quantity" name="quantity" type="number" min="1" max="100" value="1" required />
+                </label>
+                <label>
+                  Valor unitario
+                  <input id="ticket-price" value="R$ 5,00" readonly />
+                </label>
+              </div>
+
+              <div class="summary">
+                <div>
+                  <span>Total da compra</span>
+                  <strong id="purchase-total">R$ 5,00</strong>
+                </div>
+                <div>
+                  <span>Vendedor</span>
+                  <strong id="seller-sales-count">0 vendas</strong>
+                </div>
+              </div>
+
+              <button class="button primary full" type="submit">Gerar vouchers</button>
+              <p class="form-note">
+                A emissao acontece no Supabase. Todos os vendedores competem pelos mesmos 100.000 numeros.
+              </p>
+            </form>
+
+            <aside class="card">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Saida</p>
+                  <h2>Vouchers 58mm</h2>
+                </div>
+                <button class="button" id="print-vouchers" type="button">Imprimir</button>
+              </div>
+              <div class="voucher-stack" id="voucher-output">
+                <div class="empty-state">Os vouchers gerados aparecem aqui prontos para impressao.</div>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="panel" id="validate-panel">
+          <div class="dashboard-grid">
+            <form class="card" id="validate-form">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Leitor oficial</p>
+                  <h2>Validar voucher</h2>
+                </div>
+              </div>
+              <label>
+                Token lido do QR Code
+                <textarea id="validation-token" rows="8" required></textarea>
+              </label>
+              <button class="button primary full" type="submit">Validar no banco</button>
+              <p class="form-note">
+                Qualquer leitor comum pode enxergar um token, mas apenas este aplicativo valida a assinatura no Supabase.
+              </p>
+            </form>
+
+            <aside class="card validation-result" id="validation-result">
+              <div class="empty-state">A validacao aparece aqui.</div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="panel" id="ranking-panel">
+          <div class="stats-grid">
+            <div class="metric">
+              <span id="issued-count">0</span>
+              <p>numeros vendidos</p>
+            </div>
+            <div class="metric">
+              <span id="revenue-total">R$ 0,00</span>
+              <p>faturamento total</p>
+            </div>
+            <div class="metric">
+              <span id="seller-position">-</span>
+              <p>sua posicao</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Bonus</p>
+                <h2>Ranking dos vendedores</h2>
+              </div>
+              <button class="button" id="refresh-dashboard" type="button">Atualizar</button>
+            </div>
+            <div class="ranking-list" id="ranking-list"></div>
+          </div>
+        </section>
+
+        <section class="panel" id="records-panel">
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Auditoria</p>
+                <h2>Ultimos vouchers</h2>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Numero</th>
+                    <th>Cliente</th>
+                    <th>Vendedor</th>
+                    <th>Emitido em</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="records-table"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="admin-panel">
+          <div class="dashboard-grid">
+            <form class="card" id="seller-form">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Dono da rifa</p>
+                  <h2>Cadastrar vendedor</h2>
+                </div>
+              </div>
+              <label>
+                Nome do vendedor
+                <input id="new-seller-name" type="text" required />
+              </label>
+              <label>
+                Email de acesso
+                <input id="new-seller-email" type="email" required />
+              </label>
+              <label>
+                Senha inicial
+                <input id="new-seller-password" type="password" minlength="6" required />
+              </label>
+              <label>
+                Telefone
+                <input id="new-seller-phone" type="tel" />
+              </label>
+              <button class="button primary full" type="submit">Cadastrar vendedor</button>
+              <p class="form-note">
+                Esta acao usa uma Edge Function com service role. Ela precisa ser publicada no Supabase.
+              </p>
+            </form>
+
+            <aside class="card">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Equipe</p>
+                  <h2>Vendedores cadastrados</h2>
+                </div>
+              </div>
+              <div class="seller-list" id="seller-list"></div>
+            </aside>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <div class="print-area" id="print-area"></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
