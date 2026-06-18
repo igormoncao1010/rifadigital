@@ -200,10 +200,13 @@ language sql
 immutable
 as $$
   select encode(
-    hmac(
-      concat_ws('|', p_voucher_id, p_raffle_id, p_sale_id, p_seller_id, p_customer_id, p_ticket_number, p_created_at, p_previous_hash),
-      p_secret,
-      'sha256'
+    extensions.hmac(
+      convert_to(
+        concat_ws('|', p_voucher_id, p_raffle_id, p_sale_id, p_seller_id, p_customer_id, p_ticket_number, p_created_at, p_previous_hash),
+        'utf8'
+      ),
+      convert_to(p_secret, 'utf8'),
+      'sha256'::text
     ),
     'hex'
   );
@@ -225,9 +228,9 @@ language sql
 immutable
 as $$
   select encode(
-    digest(
+    extensions.digest(
       concat_ws('|', p_voucher_id, p_raffle_id, p_sale_id, p_seller_id, p_customer_id, p_ticket_number, p_created_at, p_previous_hash, p_signature),
-      'sha256'
+      'sha256'::text
     ),
     'hex'
   );

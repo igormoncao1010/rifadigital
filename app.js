@@ -358,15 +358,77 @@ function updatePurchaseTotal() {
 }
 
 async function makeQrDataUrl(token) {
-  return window.QRCode.toDataURL(token, {
-    errorCorrectionLevel: "M",
-    margin: 1,
-    width: 240,
-    color: {
-      dark: "#111111",
-      light: "#ffffff",
-    },
-  });
+  if (window.QRCode?.toDataURL) {
+    return window.QRCode.toDataURL(token, {
+      errorCorrectionLevel: "M",
+      margin: 1,
+      width: 240,
+      color: {
+        dark: "#111111",
+        light: "#ffffff",
+      },
+    });
+  }
+
+  if (window.qrcode) {
+    const qr = window.qrcode(0, "M");
+    qr.addData(token);
+    qr.make();
+    const svg = qr.createSvgTag({ cellSize: 6, margin: 1 });
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  }
+
+  return makeFallbackCodeDataUrl(token);
+}
+
+function makeFallbackCodeDataUrl(token) {
+  const size = 33;
+  const cell = 7;
+  const quiet = 4;
+  const canvas = document.createElement("canvas");
+  canvas.width = (size + quiet * 2) * cell;
+  canvas.height = canvas.width;
+  const context = canvas.getContext("2d");
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#111111";
+
+  const bits = [...token].map((char) => char.charCodeAt(0).toString(2).padStart(8, "0")).join("");
+
+  function drawFinder(x, y) {
+    context.fillRect((x + quiet) * cell, (y + quiet) * cell, 7 * cell, 7 * cell);
+    context.fillStyle = "#ffffff";
+    context.fillRect((x + quiet + 1) * cell, (y + quiet + 1) * cell, 5 * cell, 5 * cell);
+    context.fillStyle = "#111111";
+    context.fillRect((x + quiet + 2) * cell, (y + quiet + 2) * cell, 3 * cell, 3 * cell);
+  }
+
+  drawFinder(0, 0);
+  drawFinder(size - 7, 0);
+  drawFinder(0, size - 7);
+
+  let index = 0;
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const inFinder =
+        (x < 8 && y < 8) ||
+        (x >= size - 8 && y < 8) ||
+        (x < 8 && y >= size - 8);
+      if (inFinder) {
+        continue;
+      }
+
+      const bit = bits[index % bits.length] === "1";
+      const mask = (x * 7 + y * 11 + index) % 5 === 0;
+      if (bit !== mask) {
+        context.fillRect((x + quiet) * cell, (y + quiet) * cell, cell, cell);
+      }
+      index += 1;
+    }
+  }
+
+  return canvas.toDataURL("image/png");
 }
 
 async function voucherTemplate(voucher) {
