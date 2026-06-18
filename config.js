@@ -1,6 +1,6 @@
 window.SUPABASE_CONFIG = {
-  url: "COLE_AQUI_A_URL_DO_SUPABASE",
-  anonKey: "COLE_AQUI_A_ANON_KEY_DO_SUPABASE",
+  url: "https://lnxmquqvawofhzvfplgp.supabase.co",
+  anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxueG1xdXF2YXdvZmh6dmZwbGdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4MTEyMTIsImV4cCI6MjA5NzM4NzIxMn0.mqsGqc6eMTmhCXY-CHhYSMgXZVQeLjmRcCKS8G-BcGI",
 };
 
 window.RIFA_CONFIG = {
