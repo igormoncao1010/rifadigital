@@ -487,6 +487,18 @@ textarea:focus {
   border-radius: 8px;
 }
 
+.search-bar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 10px;
+}
+
+.search-bar label {
+  margin-bottom: 0;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -507,6 +519,14 @@ th {
   background: rgba(32, 214, 163, 0.14);
   font-size: 0.78rem;
   text-transform: uppercase;
+}
+
+.clickable-row {
+  cursor: pointer;
+}
+
+.clickable-row:hover {
+  background: rgba(32, 214, 163, 0.12);
 }
 
 .admin-hero-card {
@@ -652,7 +672,8 @@ th {
   }
 
   .two-columns,
-  .ranking-row {
+  .ranking-row,
+  .search-bar {
     grid-template-columns: 1fr;
   }
 

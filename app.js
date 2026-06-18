@@ -29,6 +29,7 @@ const loginForm = document.querySelector("#login-form");
 const issueForm = document.querySelector("#issue-form");
 const validateForm = document.querySelector("#validate-form");
 const sellerForm = document.querySelector("#seller-form");
+const voucherSearchForm = document.querySelector("#voucher-search-form");
 const quantityInput = document.querySelector("#ticket-quantity");
 const voucherOutput = document.querySelector("#voucher-output");
 const printArea = document.querySelector("#print-area");
@@ -205,30 +206,37 @@ function renderRanking(rows) {
 }
 
 async function renderRecords() {
-  const { data, error } = await db
-    .from("voucher_history")
-    .select("ticket_number, customer_name, seller_name, created_at, status")
-    .order("created_at", { ascending: false })
-    .limit(250);
-
-  if (error) {
-    throw error;
-  }
+  const data = await callRpc("search_reprint_vouchers", {
+    p_raffle_id: appConfig.raffleId,
+    p_query: document.querySelector("#voucher-search")?.value.trim() || "",
+  });
 
   document.querySelector("#records-table").innerHTML =
     data
       .map(
-        (row) => `
-          <tr>
+        (row, index) => `
+          <tr class="clickable-row" data-voucher-index="${index}">
             <td>${formatLuckyNumber(row.ticket_number)}</td>
             <td>${escapeHtml(row.customer_name)}</td>
+            <td>${escapeHtml(row.customer_cpf)}</td>
             <td>${escapeHtml(row.seller_name)}</td>
             <td>${new Date(row.created_at).toLocaleString("pt-BR")}</td>
             <td>${escapeHtml(row.status)}</td>
           </tr>
         `,
       )
-      .join("") || '<tr><td colspan="5">Nenhum voucher emitido ainda.</td></tr>';
+      .join("") || '<tr><td colspan="6">Nenhum voucher encontrado.</td></tr>';
+
+  document.querySelectorAll("[data-voucher-index]").forEach((row) => {
+    row.addEventListener("click", async () => {
+      const voucher = data[Number(row.dataset.voucherIndex)];
+      const saleVouchers = data.filter((item) => item.sale_id === voucher.sale_id);
+      state.lastGenerated = saleVouchers.length ? saleVouchers : [voucher];
+      await renderGeneratedVouchers();
+      setActiveTab("issue-panel");
+      showToast(`${state.lastGenerated.length} voucher(es) carregado(s) para reimpressao.`);
+    });
+  });
 }
 
 async function renderSellers() {
@@ -614,6 +622,25 @@ document.querySelector("#refresh-dashboard").addEventListener("click", async () 
   try {
     await refreshDashboard();
     showToast("Painel atualizado.");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+voucherSearchForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    await renderRecords();
+    showToast("Busca concluida.");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+document.querySelector("#clear-voucher-search").addEventListener("click", async () => {
+  document.querySelector("#voucher-search").value = "";
+  try {
+    await renderRecords();
   } catch (error) {
     showToast(error.message);
   }
