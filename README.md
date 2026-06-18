@@ -10,6 +10,8 @@ Sistema multi-vendedor para rifa digital com 100.000 numeros, vouchers 58mm, ran
 - Cada venda pode gerar varios vouchers para o mesmo cliente.
 - O painel mostra numeros disponiveis, vendidos, faturamento e ranking dos vendedores.
 - O dono/admin pode cadastrar vendedores pela tela do sistema.
+- O dono/admin tem um painel separado com metricas, vendas por vendedor, vendas recentes e contatos autorizados para marketing.
+- O cadastro do cliente inclui autorizacao opcional para campanhas futuras.
 - Cada voucher tem QR Code com token assinado.
 - A validacao consulta o Supabase e registra a tentativa no banco.
 - Impressao preparada para cupom de 58mm.
@@ -21,6 +23,7 @@ Sistema multi-vendedor para rifa digital com 100.000 numeros, vouchers 58mm, ran
 - `app.js`: login, emissao, ranking, validacao e impressao.
 - `config.js`: URL e chave anonima do Supabase.
 - `supabase/schema.sql`: tabelas, politicas, ranking e funcoes do banco.
+- `supabase/admin-upgrade.sql`: atualizacao para painel ADM e consentimento de marketing.
 - `supabase/first-owner.sql`: cria o primeiro dono da rifa.
 - `supabase/functions/admin-create-seller/index.ts`: Edge Function para cadastrar vendedores.
 
@@ -53,3 +56,9 @@ Depois de entrar como dono:
 4. Imprima os vouchers.
 5. Copie o token de um voucher e valide na aba Validar.
 6. Veja o ranking atualizar.
+
+## Atualizacao do painel ADM
+
+Se o banco ja foi criado antes desta versao, rode `supabase/admin-upgrade.sql` no SQL Editor do Supabase antes de publicar o site atualizado na Vercel.
+
+O painel ADM usa a funcao `get_admin_dashboard`, entao ela precisa existir no Supabase para o administrador entrar sem erro.

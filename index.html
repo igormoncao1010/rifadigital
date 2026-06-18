@@ -17,10 +17,10 @@
       <section class="auth-screen" id="auth-screen">
         <div class="auth-hero">
           <p class="eyebrow">Rifa Digital</p>
-          <h1>Venda com todos os vendedores no mesmo banco</h1>
+          <h1>Central surreal de vendas premiadas</h1>
           <p>
-            Login por vendedor, numeros unicos para toda a campanha, ranking de vendas e vouchers
-            prontos para cupom 58mm.
+            Numeros unicos, vendedores em tempo real, vouchers autenticados e um painel de comando
+            para o dono acompanhar cada detalhe da campanha.
           </p>
         </div>
 
@@ -48,7 +48,7 @@
         <header class="topbar">
           <div>
             <p class="eyebrow">Painel da rifa</p>
-            <h1>Emissao e ranking</h1>
+            <h1 id="main-title">Emissao e ranking</h1>
           </div>
           <div class="top-actions">
             <div class="status-pill">
@@ -64,12 +64,93 @@
         </header>
 
         <nav class="tabs" aria-label="Modulos do sistema">
+          <button class="tab admin-only" type="button" data-tab="admin-control-panel">Painel ADM</button>
           <button class="tab active" type="button" data-tab="issue-panel">Emitir</button>
           <button class="tab" type="button" data-tab="validate-panel">Validar</button>
           <button class="tab" type="button" data-tab="ranking-panel">Ranking</button>
           <button class="tab" type="button" data-tab="records-panel">Registros</button>
           <button class="tab admin-only" type="button" data-tab="admin-panel">Vendedores</button>
         </nav>
+
+        <section class="panel admin-only" id="admin-control-panel">
+          <div class="admin-hero-card">
+            <div>
+              <p class="eyebrow">Centro de comando</p>
+              <h2>Controle total da rifa</h2>
+              <p>
+                Acompanhe receita, numeros emitidos, ranking, vendas recentes e contatos autorizados
+                para campanhas futuras.
+              </p>
+            </div>
+            <button class="button light" id="refresh-admin-dashboard" type="button">Atualizar painel</button>
+          </div>
+
+          <div class="stats-grid admin-metrics">
+            <div class="metric">
+              <span id="admin-revenue">R$ 0,00</span>
+              <p>faturamento total</p>
+            </div>
+            <div class="metric">
+              <span id="admin-issued">0</span>
+              <p>numeros vendidos</p>
+            </div>
+            <div class="metric">
+              <span id="admin-available">100.000</span>
+              <p>numeros livres</p>
+            </div>
+            <div class="metric">
+              <span id="admin-customers">0</span>
+              <p>clientes cadastrados</p>
+            </div>
+          </div>
+
+          <div class="admin-grid">
+            <section class="card">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Performance</p>
+                  <h2>Vendas por vendedor</h2>
+                </div>
+              </div>
+              <div class="ranking-list" id="admin-seller-performance"></div>
+            </section>
+
+            <section class="card">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Marketing</p>
+                  <h2>Contatos autorizados</h2>
+                </div>
+                <button class="button" id="export-contacts" type="button">Baixar CSV</button>
+              </div>
+              <div class="contact-list" id="marketing-contacts"></div>
+            </section>
+          </div>
+
+          <section class="card">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Auditoria ADM</p>
+                <h2>Ultimas vendas</h2>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Vendedor</th>
+                    <th>Cliente</th>
+                    <th>Contato</th>
+                    <th>Qtd.</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-sales-table"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
 
         <section class="panel active" id="issue-panel">
           <div class="dashboard-grid">
@@ -100,6 +181,11 @@
               <label>
                 Email
                 <input id="buyer-email" name="email" type="email" autocomplete="email" required />
+              </label>
+
+              <label class="check-row">
+                <input id="marketing-consent" type="checkbox" />
+                <span>Cliente autoriza receber campanhas e avisos desta rifa por email ou telefone.</span>
               </label>
 
               <div class="two-columns">

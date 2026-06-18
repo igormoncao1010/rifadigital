@@ -19,6 +19,7 @@ const state = {
   session: null,
   seller: null,
   dashboard: null,
+  adminDashboard: null,
   lastGenerated: [],
 };
 
@@ -71,6 +72,19 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
+function isAdmin() {
+  return ["owner", "admin"].includes(state.seller?.role);
+}
+
+function setActiveTab(panelId) {
+  document.querySelectorAll(".tab").forEach((tab) => {
+    tab.classList.toggle("active", tab.dataset.tab === panelId);
+  });
+  document.querySelectorAll(".panel").forEach((panel) => {
+    panel.classList.toggle("active", panel.id === panelId);
+  });
+}
+
 function requireConfig() {
   if (hasSupabaseConfig) {
     return true;
@@ -111,6 +125,9 @@ async function loadSession() {
   await loadSeller();
   authScreen.classList.add("hidden");
   mainApp.classList.remove("hidden");
+  if (isAdmin()) {
+    setActiveTab("admin-control-panel");
+  }
   await refreshDashboard();
 }
 
@@ -127,14 +144,15 @@ async function loadSeller() {
 
   if (!data || !data.active) {
     await db.auth.signOut();
-    throw new Error("Vendedor sem acesso ativo. Peça liberacao ao dono da rifa.");
+    throw new Error("Vendedor sem acesso ativo. Peca liberacao ao dono da rifa.");
   }
 
   state.seller = data;
   document.querySelector("#seller-name").textContent = data.name;
   document.querySelector("#seller-role").textContent = data.role;
+  document.querySelector("#main-title").textContent = isAdmin() ? "Painel de controle ADM" : "Emissao e ranking";
   document.querySelectorAll(".admin-only").forEach((element) => {
-    element.classList.toggle("hidden", !["owner", "admin"].includes(data.role));
+    element.classList.toggle("hidden", !isAdmin());
   });
 }
 
@@ -156,8 +174,9 @@ async function refreshDashboard() {
 
   renderRanking(dashboard.ranking);
   await renderRecords();
-  if (["owner", "admin"].includes(state.seller.role)) {
+  if (isAdmin()) {
     await renderSellers();
+    await renderAdminDashboard();
   }
   updatePurchaseTotal();
 }
@@ -238,6 +257,100 @@ async function renderSellers() {
       .join("") || '<div class="empty-state">Nenhum vendedor cadastrado.</div>';
 }
 
+async function renderAdminDashboard() {
+  if (!isAdmin()) {
+    return;
+  }
+
+  const data = await callRpc("get_admin_dashboard", {
+    p_raffle_id: appConfig.raffleId,
+  });
+  state.adminDashboard = data;
+
+  document.querySelector("#admin-revenue").textContent = formatCurrency(data.revenue_total);
+  document.querySelector("#admin-issued").textContent = Number(data.issued_count || 0).toLocaleString("pt-BR");
+  document.querySelector("#admin-available").textContent = Number(data.available_count || 0).toLocaleString("pt-BR");
+  document.querySelector("#admin-customers").textContent = Number(data.customer_count || 0).toLocaleString("pt-BR");
+
+  document.querySelector("#admin-seller-performance").innerHTML =
+    data.sellers
+      .map(
+        (seller) => `
+          <article class="ranking-row">
+            <strong>${seller.position}o</strong>
+            <div>
+              <h3>${escapeHtml(seller.seller_name)}</h3>
+              <p>${Number(seller.sales_count || 0).toLocaleString("pt-BR")} vendas - ${Number(
+                seller.tickets_sold || 0,
+              ).toLocaleString("pt-BR")} numeros</p>
+            </div>
+            <span>${formatCurrency(seller.revenue)}</span>
+          </article>
+        `,
+      )
+      .join("") || '<div class="empty-state">Nenhum vendedor com venda ainda.</div>';
+
+  document.querySelector("#marketing-contacts").innerHTML =
+    data.contacts
+      .map(
+        (contact) => `
+          <article class="contact-row">
+            <div>
+              <h3>${escapeHtml(contact.name)}</h3>
+              <p>${escapeHtml(contact.email)} - ${escapeHtml(contact.phone)}</p>
+            </div>
+            <span>${Number(contact.purchases || 0)} compra(s)</span>
+          </article>
+        `,
+      )
+      .join("") || '<div class="empty-state">Nenhum contato autorizado ainda.</div>';
+
+  document.querySelector("#admin-sales-table").innerHTML =
+    data.recent_sales
+      .map(
+        (sale) => `
+          <tr>
+            <td>${new Date(sale.created_at).toLocaleString("pt-BR")}</td>
+            <td>${escapeHtml(sale.seller_name)}</td>
+            <td>${escapeHtml(sale.customer_name)}</td>
+            <td>${escapeHtml(sale.customer_email)}<br />${escapeHtml(sale.customer_phone)}</td>
+            <td>${Number(sale.quantity || 0).toLocaleString("pt-BR")}</td>
+            <td>${formatCurrency(sale.total_amount)}</td>
+          </tr>
+        `,
+      )
+      .join("") || '<tr><td colspan="6">Nenhuma venda registrada ainda.</td></tr>';
+}
+
+function exportMarketingContacts() {
+  const contacts = state.adminDashboard?.contacts || [];
+  if (!contacts.length) {
+    showToast("Nao ha contatos autorizados para exportar.");
+    return;
+  }
+
+  const rows = [
+    ["nome", "email", "telefone", "cpf", "compras"],
+    ...contacts.map((contact) => [
+      contact.name,
+      contact.email,
+      contact.phone,
+      contact.cpf,
+      String(contact.purchases || 0),
+    ]),
+  ];
+  const csv = rows
+    .map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "contatos-marketing-rifa.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function updatePurchaseTotal() {
   const quantity = Number(quantityInput.value || 0);
   const price = state.dashboard?.ticket_price || appConfig.ticketPrice;
@@ -307,6 +420,9 @@ loginForm.addEventListener("submit", async (event) => {
     await loadSeller();
     authScreen.classList.add("hidden");
     mainApp.classList.remove("hidden");
+    if (isAdmin()) {
+      setActiveTab("admin-control-panel");
+    }
     await refreshDashboard();
     showToast("Login realizado.");
   } catch (error) {
@@ -338,6 +454,7 @@ issueForm.addEventListener("submit", async (event) => {
     phone: document.querySelector("#buyer-phone").value.trim(),
     email: document.querySelector("#buyer-email").value.trim(),
     cpf: formatCpf(document.querySelector("#buyer-cpf").value),
+    marketing_consent: document.querySelector("#marketing-consent").checked,
   };
 
   if (!customer.name || !customer.phone || !customer.email || onlyDigits(customer.cpf).length !== 11) {
@@ -416,6 +533,7 @@ sellerForm.addEventListener("submit", async (event) => {
 
     sellerForm.reset();
     await renderSellers();
+    await renderAdminDashboard();
     showToast("Vendedor cadastrado.");
   } catch (error) {
     showToast(error.message);
@@ -439,6 +557,17 @@ document.querySelector("#refresh-dashboard").addEventListener("click", async () 
   }
 });
 
+document.querySelector("#refresh-admin-dashboard").addEventListener("click", async () => {
+  try {
+    await renderAdminDashboard();
+    showToast("Painel ADM atualizado.");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+document.querySelector("#export-contacts").addEventListener("click", exportMarketingContacts);
+
 document.querySelector("#buyer-cpf").addEventListener("input", (event) => {
   event.target.value = formatCpf(event.target.value);
 });
@@ -447,10 +576,7 @@ quantityInput.addEventListener("input", updatePurchaseTotal);
 
 document.querySelectorAll(".tab").forEach((button) => {
   button.addEventListener("click", () => {
-    document.querySelectorAll(".tab").forEach((tab) => tab.classList.remove("active"));
-    document.querySelectorAll(".panel").forEach((panel) => panel.classList.remove("active"));
-    button.classList.add("active");
-    document.querySelector(`#${button.dataset.tab}`).classList.add("active");
+    setActiveTab(button.dataset.tab);
   });
 });
 

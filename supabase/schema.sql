@@ -27,6 +27,7 @@ create table if not exists public.customers (
   phone text not null,
   email text not null,
   cpf text not null,
+  marketing_consent boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -309,12 +310,13 @@ begin
     raise exception 'Nao existem numeros suficientes disponiveis.';
   end if;
 
-  insert into public.customers (name, phone, email, cpf)
+  insert into public.customers (name, phone, email, cpf, marketing_consent)
   values (
     trim(p_customer->>'name'),
     trim(p_customer->>'phone'),
     trim(p_customer->>'email'),
-    trim(p_customer->>'cpf')
+    trim(p_customer->>'cpf'),
+    coalesce((p_customer->>'marketing_consent')::boolean, false)
   )
   returning id into v_customer_id;
 
@@ -578,3 +580,117 @@ $$;
 grant execute on function public.issue_vouchers(uuid, jsonb, integer) to authenticated;
 grant execute on function public.validate_voucher_token(text) to authenticated;
 grant execute on function public.get_raffle_dashboard(uuid) to authenticated;
+
+create or replace function public.get_admin_dashboard(p_raffle_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_raffle public.raffles;
+  v_issued integer;
+  v_revenue numeric(10, 2);
+  v_customer_count integer;
+  v_sellers jsonb;
+  v_contacts jsonb;
+  v_recent_sales jsonb;
+begin
+  if not public.is_admin() then
+    raise exception 'Acesso restrito ao administrador.';
+  end if;
+
+  select * into v_raffle
+  from public.raffles
+  where id = coalesce(p_raffle_id, (select id from public.raffles where active = true order by created_at asc limit 1))
+  limit 1;
+
+  if v_raffle.id is null then
+    raise exception 'Rifa nao encontrada.';
+  end if;
+
+  select count(*) into v_issued from public.vouchers where raffle_id = v_raffle.id;
+  select coalesce(sum(total_amount), 0) into v_revenue from public.sales where raffle_id = v_raffle.id;
+  select count(distinct customer_id) into v_customer_count from public.sales where raffle_id = v_raffle.id;
+
+  select coalesce(jsonb_agg(row_data order by (row_data->>'position')::integer), '[]'::jsonb)
+  into v_sellers
+  from (
+    select jsonb_build_object(
+      'position', row_number() over (order by coalesce(vs.tickets_sold, 0) desc, coalesce(ss.revenue, 0) desc, s.name asc),
+      'seller_id', s.id,
+      'seller_name', s.name,
+      'sales_count', coalesce(ss.sales_count, 0),
+      'tickets_sold', coalesce(vs.tickets_sold, 0),
+      'revenue', coalesce(ss.revenue, 0)
+    ) as row_data
+    from public.sellers s
+    left join (
+      select seller_id, count(*) as tickets_sold
+      from public.vouchers
+      where raffle_id = v_raffle.id
+      group by seller_id
+    ) vs on vs.seller_id = s.id
+    left join (
+      select seller_id, count(*) as sales_count, sum(total_amount) as revenue
+      from public.sales
+      where raffle_id = v_raffle.id
+      group by seller_id
+    ) ss on ss.seller_id = s.id
+    where s.active = true
+  ) ranked;
+
+  select coalesce(jsonb_agg(row_data order by row_data->>'name'), '[]'::jsonb)
+  into v_contacts
+  from (
+    select jsonb_build_object(
+      'name', c.name,
+      'email', c.email,
+      'phone', c.phone,
+      'cpf', c.cpf,
+      'purchases', count(sa.id)
+    ) as row_data
+    from public.customers c
+    join public.sales sa on sa.customer_id = c.id and sa.raffle_id = v_raffle.id
+    where c.marketing_consent = true
+    group by c.id, c.name, c.email, c.phone, c.cpf
+  ) contacts;
+
+  select coalesce(jsonb_agg(row_data order by row_data->>'created_at' desc), '[]'::jsonb)
+  into v_recent_sales
+  from (
+    select jsonb_build_object(
+      'id', sa.id,
+      'created_at', sa.created_at,
+      'seller_name', s.name,
+      'customer_name', c.name,
+      'customer_email', c.email,
+      'customer_phone', c.phone,
+      'quantity', sa.quantity,
+      'total_amount', sa.total_amount
+    ) as row_data
+    from public.sales sa
+    join public.sellers s on s.id = sa.seller_id
+    join public.customers c on c.id = sa.customer_id
+    where sa.raffle_id = v_raffle.id
+    order by sa.created_at desc
+    limit 100
+  ) sales;
+
+  return jsonb_build_object(
+    'raffle_id', v_raffle.id,
+    'raffle_name', v_raffle.name,
+    'total_numbers', v_raffle.total_numbers,
+    'ticket_price', v_raffle.ticket_price,
+    'issued_count', v_issued,
+    'available_count', v_raffle.total_numbers - v_issued,
+    'revenue_total', v_revenue,
+    'customer_count', v_customer_count,
+    'sellers', v_sellers,
+    'contacts', v_contacts,
+    'recent_sales', v_recent_sales
+  );
+end;
+$$;
+
+grant execute on function public.get_admin_dashboard(uuid) to authenticated;
