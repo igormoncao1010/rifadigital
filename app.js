@@ -23,6 +23,8 @@ const state = {
   dashboard: null,
   adminDashboard: null,
   lastGenerated: [],
+  scannerStream: null,
+  scannerFrame: null,
 };
 
 const authScreen = document.querySelector("#auth-screen");
@@ -44,6 +46,42 @@ function showToast(message) {
   toast.classList.add("show");
   window.clearTimeout(showToast.timeout);
   showToast.timeout = window.setTimeout(() => toast.classList.remove("show"), 3000);
+}
+
+function normalizeFileName(name) {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9.-]/g, "-")
+    .replace(/-+/g, "-")
+    .toLowerCase();
+}
+
+async function uploadRaffleImage(inputId, currentUrl = "") {
+  const input = document.querySelector(`#${inputId}`);
+  const file = input?.files?.[0];
+
+  if (!file) {
+    return currentUrl || "";
+  }
+
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Envie apenas arquivo de imagem.");
+  }
+
+  const safeName = normalizeFileName(file.name);
+  const path = `${state.seller.id}/${Date.now()}-${safeName}`;
+  const { error } = await db.storage.from("raffle-images").upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const { data } = db.storage.from("raffle-images").getPublicUrl(path);
+  return data.publicUrl;
 }
 
 function onlyDigits(value) {
@@ -197,7 +235,7 @@ function renderRaffleList() {
           ${image}
           <span>
             <strong>${escapeHtml(raffle.name)}</strong>
-            <small>${escapeHtml(raffle.prize_description || "Premio nao informado")}</small>
+            <small>${escapeHtml(raffle.prize_description || "Prêmio não informado")}</small>
             <em>${available.toLocaleString("pt-BR")} livres - ${formatCurrency(raffle.ticket_price)}</em>
           </span>
         </button>
@@ -229,7 +267,7 @@ async function refreshDashboard() {
   document.querySelector("#available-count").textContent = available.toLocaleString("pt-BR");
   document.querySelector("#issued-count").textContent = dashboard.issued_count.toLocaleString("pt-BR");
   document.querySelector("#revenue-total").textContent = formatCurrency(dashboard.revenue_total);
-  document.querySelector("#seller-sales-count").textContent = `${sellerRow?.tickets_sold || 0} numeros`;
+  document.querySelector("#seller-sales-count").textContent = `${sellerRow?.tickets_sold || 0} números`;
   document.querySelector("#seller-position").textContent = sellerRow ? `${sellerRow.position}o` : "-";
   document.querySelector("#ticket-price").value = formatCurrency(dashboard.ticket_price || appConfig.ticketPrice);
   document.querySelector("#main-title").textContent = currentRaffle()?.name || (isAdmin() ? "Painel de controle ADM" : "Emissao e ranking");
@@ -257,7 +295,7 @@ function renderRanking(rows) {
           <strong>${row.position}o</strong>
           <div>
             <h3>${escapeHtml(row.seller_name)}</h3>
-            <p>${row.tickets_sold.toLocaleString("pt-BR")} numeros vendidos</p>
+            <p>${row.tickets_sold.toLocaleString("pt-BR")} números vendidos</p>
           </div>
           <span>${formatCurrency(row.revenue)}</span>
         </article>
@@ -295,7 +333,7 @@ async function renderRecords() {
       state.lastGenerated = saleVouchers.length ? saleVouchers : [voucher];
       await renderGeneratedVouchers();
       setActiveTab("issue-panel");
-      showToast(`${state.lastGenerated.length} voucher(es) carregado(s) para reimpressao.`);
+      showToast(`${state.lastGenerated.length} voucher(es) carregado(s) para reimpressão.`);
     });
   });
 }
@@ -352,7 +390,7 @@ async function renderAdminDashboard() {
               <h3>${escapeHtml(seller.seller_name)}</h3>
               <p>${Number(seller.sales_count || 0).toLocaleString("pt-BR")} vendas - ${Number(
                 seller.tickets_sold || 0,
-              ).toLocaleString("pt-BR")} numeros</p>
+              ).toLocaleString("pt-BR")} números</p>
             </div>
             <span>${formatCurrency(seller.revenue)}</span>
           </article>
@@ -441,7 +479,7 @@ async function renderAdminDashboard() {
 function exportMarketingContacts() {
   const contacts = state.adminDashboard?.contacts || [];
   if (!contacts.length) {
-    showToast("Nao ha contatos autorizados para exportar.");
+    showToast("Não há contatos autorizados para exportar.");
     return;
   }
 
@@ -481,7 +519,9 @@ function fillRaffleSettings() {
   }
 
   document.querySelector("#raffle-name").value = raffle.name || "";
-  document.querySelector("#raffle-image").value = raffle.image_url || "";
+  document.querySelector("#raffle-current-image").textContent = raffle.image_url
+    ? "Imagem atual cadastrada."
+    : "Nenhuma imagem enviada.";
   document.querySelector("#raffle-prize").value = raffle.prize_description || "";
   document.querySelector("#raffle-draw-date").value = raffle.draw_date || "";
   document.querySelector("#raffle-ticket-price").value = Number(raffle.ticket_price || 0).toFixed(2);
@@ -492,7 +532,7 @@ function fillRaffleSettings() {
 function exportRanking() {
   const sellers = state.adminDashboard?.sellers || [];
   downloadCsv("ranking-vendedores.csv", [
-    ["posicao", "vendedor", "vendas", "numeros", "faturamento"],
+    ["posição", "vendedor", "vendas", "números", "faturamento"],
     ...sellers.map((seller) => [
       seller.position,
       seller.seller_name,
@@ -525,6 +565,74 @@ function updatePurchaseTotal() {
   const quantity = Number(quantityInput.value || 0);
   const price = state.dashboard?.ticket_price || appConfig.ticketPrice;
   document.querySelector("#purchase-total").textContent = formatCurrency(quantity * price);
+}
+
+function stopQrScanner() {
+  if (state.scannerFrame) {
+    cancelAnimationFrame(state.scannerFrame);
+    state.scannerFrame = null;
+  }
+
+  if (state.scannerStream) {
+    state.scannerStream.getTracks().forEach((track) => track.stop());
+    state.scannerStream = null;
+  }
+
+  document.querySelector("#scanner-box").classList.add("hidden");
+  document.querySelector("#stop-scan-button").classList.add("hidden");
+  document.querySelector("#scan-qr-button").classList.remove("hidden");
+}
+
+async function startQrScanner() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showToast("Este navegador não liberou câmera para leitura do QR.");
+    return;
+  }
+
+  const video = document.querySelector("#qr-video");
+  const canvas = document.querySelector("#qr-canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+
+  try {
+    state.scannerStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" } },
+      audio: false,
+    });
+    video.srcObject = state.scannerStream;
+    await video.play();
+
+    document.querySelector("#scanner-box").classList.remove("hidden");
+    document.querySelector("#stop-scan-button").classList.remove("hidden");
+    document.querySelector("#scan-qr-button").classList.add("hidden");
+
+    const scan = () => {
+      if (!state.scannerStream) {
+        return;
+      }
+
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const code = window.jsQR?.(imageData.data, imageData.width, imageData.height);
+
+        if (code?.data) {
+          document.querySelector("#validation-token").value = code.data;
+          stopQrScanner();
+          showToast("QR Code lido. Agora clique em validar.");
+          return;
+        }
+      }
+
+      state.scannerFrame = requestAnimationFrame(scan);
+    };
+
+    scan();
+  } catch (error) {
+    stopQrScanner();
+    showToast(error.message || "Não foi possível acessar a câmera.");
+  }
 }
 
 async function makeQrDataUrl(token) {
@@ -612,11 +720,11 @@ async function voucherTemplate(voucher) {
       <div class="lucky-number">${formatLuckyNumber(voucher.ticket_number)}</div>
       <p><strong>Nome:</strong> ${escapeHtml(voucher.customer_name)}</p>
       <p><strong>Telefone:</strong> ${escapeHtml(voucher.customer_phone)}</p>
-      <p><strong>Email:</strong> ${escapeHtml(voucher.customer_email)}</p>
+      <p><strong>E-mail:</strong> ${escapeHtml(voucher.customer_email)}</p>
       <p><strong>CPF:</strong> ${escapeHtml(voucher.customer_cpf)}</p>
       <p><strong>Vendedor:</strong> ${escapeHtml(voucher.seller_name)}</p>
       <p><strong>Emitido:</strong> ${issuedAt}</p>
-      <img class="private-qr" src="${qr}" alt="QR Code de validacao" />
+      <img class="private-qr" src="${qr}" alt="QR Code de validação" />
       <p class="voucher-code">${escapeHtml(voucher.token)}</p>
     </article>
   `;
@@ -624,7 +732,7 @@ async function voucherTemplate(voucher) {
 
 async function renderGeneratedVouchers() {
   if (!state.lastGenerated.length) {
-    voucherOutput.innerHTML = '<div class="empty-state">Os vouchers gerados aparecem aqui prontos para impressao.</div>';
+    voucherOutput.innerHTML = '<div class="empty-state">Os vouchers gerados aparecem aqui prontos para impressão.</div>';
     printArea.innerHTML = "";
     return;
   }
@@ -690,7 +798,7 @@ issueForm.addEventListener("submit", async (event) => {
   };
 
   if (!customer.name || !customer.phone || !customer.email || onlyDigits(customer.cpf).length !== 11) {
-    showToast("Preencha nome, telefone, email e CPF valido.");
+    showToast("Preencha nome, telefone, e-mail e CPF válido.");
     return;
   }
 
@@ -776,9 +884,10 @@ raffleCreateForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   try {
+    const imageUrl = await uploadRaffleImage("new-raffle-image");
     const raffle = await callRpc("create_raffle", {
       p_name: document.querySelector("#new-raffle-name").value.trim(),
-      p_image_url: document.querySelector("#new-raffle-image").value.trim(),
+      p_image_url: imageUrl,
       p_prize_description: document.querySelector("#new-raffle-prize").value.trim(),
       p_total_numbers: Number(document.querySelector("#new-raffle-total").value || 0),
       p_ticket_price: Number(document.querySelector("#new-raffle-price").value || 0),
@@ -798,10 +907,11 @@ raffleSettingsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   try {
+    const imageUrl = await uploadRaffleImage("raffle-image", currentRaffle()?.image_url || "");
     await callRpc("update_raffle_settings", {
       p_raffle_id: state.currentRaffleId,
       p_name: document.querySelector("#raffle-name").value.trim(),
-      p_image_url: document.querySelector("#raffle-image").value.trim(),
+      p_image_url: imageUrl,
       p_prize_description: document.querySelector("#raffle-prize").value.trim(),
       p_draw_date: document.querySelector("#raffle-draw-date").value || null,
       p_ticket_price: Number(document.querySelector("#raffle-ticket-price").value || 0),
@@ -810,7 +920,7 @@ raffleSettingsForm.addEventListener("submit", async (event) => {
     });
     await loadRaffles();
     await refreshDashboard();
-    showToast("Configuracoes salvas.");
+    showToast("Configurações salvas.");
   } catch (error) {
     showToast(error.message);
   }
@@ -885,6 +995,9 @@ document.querySelector("#export-backup").addEventListener("click", async () => {
     showToast(error.message);
   }
 });
+
+document.querySelector("#scan-qr-button").addEventListener("click", startQrScanner);
+document.querySelector("#stop-scan-button").addEventListener("click", stopQrScanner);
 
 document.querySelector("#buyer-cpf").addEventListener("input", (event) => {
   event.target.value = formatCpf(event.target.value);

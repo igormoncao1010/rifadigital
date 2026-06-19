@@ -507,6 +507,21 @@ textarea:focus {
   color: var(--danger);
 }
 
+.scanner-box {
+  overflow: hidden;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.scanner-box video {
+  width: 100%;
+  max-height: 360px;
+  display: block;
+  object-fit: cover;
+}
+
 .ranking-list,
 .seller-list {
   display: grid;
