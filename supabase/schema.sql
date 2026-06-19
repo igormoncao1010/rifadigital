@@ -5,6 +5,9 @@ create table if not exists public.raffles (
   name text not null default 'Rifa Digital Premiada',
   total_numbers integer not null default 100000 check (total_numbers > 0),
   ticket_price numeric(10, 2) not null default 5.00 check (ticket_price >= 0),
+  prize_description text,
+  draw_date date,
+  privacy_text text default 'Autorizo o uso dos meus dados para contato sobre esta rifa e campanhas relacionadas.',
   secret_key text not null default encode(gen_random_bytes(32), 'hex'),
   active boolean not null default true,
   created_at timestamptz not null default now()
@@ -39,6 +42,10 @@ create table if not exists public.sales (
   quantity integer not null check (quantity > 0),
   unit_price numeric(10, 2) not null,
   total_amount numeric(10, 2) not null,
+  status text not null default 'active' check (status in ('active', 'cancelled')),
+  cancelled_at timestamptz,
+  cancelled_by uuid references public.sellers(id),
+  cancel_reason text,
   created_at timestamptz not null default now()
 );
 

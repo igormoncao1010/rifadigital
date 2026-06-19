@@ -229,6 +229,18 @@ h3 {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.button.tiny {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 0.78rem;
+}
+
+.button.danger {
+  color: #ffffff;
+  border-color: var(--danger);
+  background: rgba(255, 107, 107, 0.32);
+}
+
 .button.full {
   width: 100%;
 }
@@ -545,6 +557,27 @@ th {
     rgba(255, 255, 255, 0.08);
   box-shadow: var(--shadow);
   backdrop-filter: blur(22px);
+}
+
+.hero-actions-stack,
+.report-actions,
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.hero-actions-stack {
+  justify-content: flex-end;
+}
+
+.report-actions {
+  align-items: stretch;
+}
+
+.report-actions .button {
+  flex: 1;
 }
 
 .admin-hero-card h2 {

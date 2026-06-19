@@ -29,6 +29,7 @@ const loginForm = document.querySelector("#login-form");
 const issueForm = document.querySelector("#issue-form");
 const validateForm = document.querySelector("#validate-form");
 const sellerForm = document.querySelector("#seller-form");
+const raffleSettingsForm = document.querySelector("#raffle-settings-form");
 const voucherSearchForm = document.querySelector("#voucher-search-form");
 const quantityInput = document.querySelector("#ticket-quantity");
 const voucherOutput = document.querySelector("#voucher-output");
@@ -164,7 +165,7 @@ async function refreshDashboard() {
 
   state.dashboard = dashboard;
   const sellerRow = dashboard.ranking.find((row) => row.seller_id === state.seller.id);
-  const available = dashboard.total_numbers - dashboard.issued_count;
+  const available = dashboard.total_numbers - (dashboard.reserved_count ?? dashboard.issued_count);
 
   document.querySelector("#available-count").textContent = available.toLocaleString("pt-BR");
   document.querySelector("#issued-count").textContent = dashboard.issued_count.toLocaleString("pt-BR");
@@ -279,6 +280,7 @@ async function renderAdminDashboard() {
   document.querySelector("#admin-issued").textContent = Number(data.issued_count || 0).toLocaleString("pt-BR");
   document.querySelector("#admin-available").textContent = Number(data.available_count || 0).toLocaleString("pt-BR");
   document.querySelector("#admin-customers").textContent = Number(data.customer_count || 0).toLocaleString("pt-BR");
+  fillRaffleSettings();
 
   document.querySelector("#admin-seller-performance").innerHTML =
     data.sellers
@@ -307,7 +309,10 @@ async function renderAdminDashboard() {
               <h3>${escapeHtml(contact.name)}</h3>
               <p>${escapeHtml(contact.email)} - ${escapeHtml(contact.phone)}</p>
             </div>
-            <span>${Number(contact.purchases || 0)} compra(s)</span>
+            <div class="row-actions">
+              <span>${Number(contact.purchases || 0)} compra(s)</span>
+              <button class="button tiny" data-optout-customer="${escapeHtml(contact.customer_id)}" type="button">Remover marketing</button>
+            </div>
           </article>
         `,
       )
@@ -324,10 +329,53 @@ async function renderAdminDashboard() {
             <td>${escapeHtml(sale.customer_email)}<br />${escapeHtml(sale.customer_phone)}</td>
             <td>${Number(sale.quantity || 0).toLocaleString("pt-BR")}</td>
             <td>${formatCurrency(sale.total_amount)}</td>
+            <td>${escapeHtml(sale.status)}</td>
+            <td>
+              ${
+                sale.status === "cancelled"
+                  ? "-"
+                  : `<button class="button tiny danger" data-cancel-sale="${escapeHtml(sale.id)}" type="button">Cancelar</button>`
+              }
+            </td>
           </tr>
         `,
       )
-      .join("") || '<tr><td colspan="6">Nenhuma venda registrada ainda.</td></tr>';
+      .join("") || '<tr><td colspan="8">Nenhuma venda registrada ainda.</td></tr>';
+
+  document.querySelectorAll("[data-cancel-sale]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const reason = prompt("Motivo do cancelamento:");
+      if (!reason) {
+        return;
+      }
+
+      try {
+        await callRpc("cancel_sale", {
+          p_sale_id: button.dataset.cancelSale,
+          p_reason: reason,
+        });
+        await refreshDashboard();
+        showToast("Venda cancelada.");
+      } catch (error) {
+        showToast(error.message);
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-optout-customer]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      try {
+        await callRpc("set_customer_marketing_consent", {
+          p_customer_id: button.dataset.optoutCustomer,
+          p_consent: false,
+        });
+        await renderAdminDashboard();
+        showToast("Contato removido das campanhas.");
+      } catch (error) {
+        showToast(error.message);
+      }
+    });
+  });
 }
 
 function exportMarketingContacts() {
@@ -337,16 +385,13 @@ function exportMarketingContacts() {
     return;
   }
 
-  const rows = [
+  downloadCsv("contatos-marketing-rifa.csv", [
     ["nome", "email", "telefone", "cpf", "compras"],
-    ...contacts.map((contact) => [
-      contact.name,
-      contact.email,
-      contact.phone,
-      contact.cpf,
-      String(contact.purchases || 0),
-    ]),
-  ];
+    ...contacts.map((contact) => [contact.name, contact.email, contact.phone, contact.cpf, String(contact.purchases || 0)]),
+  ]);
+}
+
+function downloadCsv(filename, rows) {
   const csv = rows
     .map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(","))
     .join("\n");
@@ -354,9 +399,64 @@ function exportMarketingContacts() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "contatos-marketing-rifa.csv";
+  link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function downloadJson(filename, data) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function fillRaffleSettings() {
+  const raffle = state.adminDashboard?.raffle;
+  if (!raffle) {
+    return;
+  }
+
+  document.querySelector("#raffle-name").value = raffle.name || "";
+  document.querySelector("#raffle-prize").value = raffle.prize_description || "";
+  document.querySelector("#raffle-draw-date").value = raffle.draw_date || "";
+  document.querySelector("#raffle-ticket-price").value = Number(raffle.ticket_price || 0).toFixed(2);
+  document.querySelector("#raffle-privacy-text").value = raffle.privacy_text || "";
+}
+
+function exportRanking() {
+  const sellers = state.adminDashboard?.sellers || [];
+  downloadCsv("ranking-vendedores.csv", [
+    ["posicao", "vendedor", "vendas", "numeros", "faturamento"],
+    ...sellers.map((seller) => [
+      seller.position,
+      seller.seller_name,
+      seller.sales_count || 0,
+      seller.tickets_sold || 0,
+      seller.revenue || 0,
+    ]),
+  ]);
+}
+
+function exportSales() {
+  const sales = state.adminDashboard?.recent_sales || [];
+  downloadCsv("vendas-rifa.csv", [
+    ["data", "vendedor", "cliente", "email", "telefone", "cpf", "quantidade", "total", "status"],
+    ...sales.map((sale) => [
+      sale.created_at,
+      sale.seller_name,
+      sale.customer_name,
+      sale.customer_email,
+      sale.customer_phone,
+      sale.customer_cpf,
+      sale.quantity || 0,
+      sale.total_amount || 0,
+      sale.status,
+    ]),
+  ]);
 }
 
 function updatePurchaseTotal() {
@@ -610,6 +710,25 @@ sellerForm.addEventListener("submit", async (event) => {
   }
 });
 
+raffleSettingsForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  try {
+    await callRpc("update_raffle_settings", {
+      p_raffle_id: appConfig.raffleId,
+      p_name: document.querySelector("#raffle-name").value.trim(),
+      p_prize_description: document.querySelector("#raffle-prize").value.trim(),
+      p_draw_date: document.querySelector("#raffle-draw-date").value || null,
+      p_ticket_price: Number(document.querySelector("#raffle-ticket-price").value || 0),
+      p_privacy_text: document.querySelector("#raffle-privacy-text").value.trim(),
+    });
+    await refreshDashboard();
+    showToast("Configuracoes salvas.");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
 document.querySelector("#print-vouchers").addEventListener("click", () => {
   if (!state.lastGenerated.length) {
     showToast("Gere vouchers antes de imprimir.");
@@ -656,6 +775,19 @@ document.querySelector("#refresh-admin-dashboard").addEventListener("click", asy
 });
 
 document.querySelector("#export-contacts").addEventListener("click", exportMarketingContacts);
+document.querySelector("#export-contacts-panel").addEventListener("click", exportMarketingContacts);
+document.querySelector("#export-ranking").addEventListener("click", exportRanking);
+document.querySelector("#export-sales").addEventListener("click", exportSales);
+document.querySelector("#export-backup").addEventListener("click", async () => {
+  try {
+    const backup = await callRpc("get_backup_snapshot", {
+      p_raffle_id: appConfig.raffleId,
+    });
+    downloadJson(`backup-rifa-${new Date().toISOString().slice(0, 10)}.json`, backup);
+  } catch (error) {
+    showToast(error.message);
+  }
+});
 
 document.querySelector("#buyer-cpf").addEventListener("input", (event) => {
   event.target.value = formatCpf(event.target.value);
