@@ -5,6 +5,7 @@ create table if not exists public.raffles (
   name text not null default 'Rifa Digital Premiada',
   total_numbers integer not null default 100000 check (total_numbers > 0),
   ticket_price numeric(10, 2) not null default 5.00 check (ticket_price >= 0),
+  image_url text,
   prize_description text,
   draw_date date,
   privacy_text text default 'Autorizo o uso dos meus dados para contato sobre esta rifa e campanhas relacionadas.',

@@ -18,6 +18,8 @@ const db = hasSupabaseConfig
 const state = {
   session: null,
   seller: null,
+  raffles: [],
+  currentRaffleId: window.RIFA_CONFIG?.raffleId || null,
   dashboard: null,
   adminDashboard: null,
   lastGenerated: [],
@@ -29,6 +31,7 @@ const loginForm = document.querySelector("#login-form");
 const issueForm = document.querySelector("#issue-form");
 const validateForm = document.querySelector("#validate-form");
 const sellerForm = document.querySelector("#seller-form");
+const raffleCreateForm = document.querySelector("#raffle-create-form");
 const raffleSettingsForm = document.querySelector("#raffle-settings-form");
 const voucherSearchForm = document.querySelector("#voucher-search-form");
 const quantityInput = document.querySelector("#ticket-quantity");
@@ -125,6 +128,7 @@ async function loadSession() {
   }
 
   await loadSeller();
+  await loadRaffles();
   authScreen.classList.add("hidden");
   mainApp.classList.remove("hidden");
   if (isAdmin()) {
@@ -158,9 +162,64 @@ async function loadSeller() {
   });
 }
 
+async function loadRaffles() {
+  const raffles = await callRpc("list_raffles", {});
+  state.raffles = raffles;
+
+  if (!state.currentRaffleId || !raffles.some((raffle) => raffle.id === state.currentRaffleId)) {
+    state.currentRaffleId = raffles[0]?.id || null;
+  }
+
+  renderRaffleList();
+}
+
+function currentRaffle() {
+  return state.raffles.find((raffle) => raffle.id === state.currentRaffleId) || null;
+}
+
+function renderRaffleList() {
+  const list = document.querySelector("#raffle-list");
+  if (!state.raffles.length) {
+    list.innerHTML = '<div class="empty-state">Nenhuma rifa ativa cadastrada.</div>';
+    return;
+  }
+
+  list.innerHTML = state.raffles
+    .map((raffle) => {
+      const available = Number(raffle.total_numbers || 0) - Number(raffle.reserved_count || 0);
+      const image = raffle.image_url
+        ? `<img src="${escapeHtml(raffle.image_url)}" alt="${escapeHtml(raffle.name)}" />`
+        : '<div class="raffle-image-placeholder">RIFA</div>';
+      return `
+        <button class="raffle-card ${raffle.id === state.currentRaffleId ? "active" : ""}" data-raffle-id="${escapeHtml(
+          raffle.id,
+        )}" type="button">
+          ${image}
+          <span>
+            <strong>${escapeHtml(raffle.name)}</strong>
+            <small>${escapeHtml(raffle.prize_description || "Premio nao informado")}</small>
+            <em>${available.toLocaleString("pt-BR")} livres - ${formatCurrency(raffle.ticket_price)}</em>
+          </span>
+        </button>
+      `;
+    })
+    .join("");
+
+  document.querySelectorAll("[data-raffle-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      state.currentRaffleId = button.dataset.raffleId;
+      state.lastGenerated = [];
+      renderRaffleList();
+      await renderGeneratedVouchers();
+      await refreshDashboard();
+      showToast("Rifa selecionada.");
+    });
+  });
+}
+
 async function refreshDashboard() {
   const dashboard = await callRpc("get_raffle_dashboard", {
-    p_raffle_id: appConfig.raffleId,
+    p_raffle_id: state.currentRaffleId,
   });
 
   state.dashboard = dashboard;
@@ -173,6 +232,7 @@ async function refreshDashboard() {
   document.querySelector("#seller-sales-count").textContent = `${sellerRow?.tickets_sold || 0} numeros`;
   document.querySelector("#seller-position").textContent = sellerRow ? `${sellerRow.position}o` : "-";
   document.querySelector("#ticket-price").value = formatCurrency(dashboard.ticket_price || appConfig.ticketPrice);
+  document.querySelector("#main-title").textContent = currentRaffle()?.name || (isAdmin() ? "Painel de controle ADM" : "Emissao e ranking");
 
   renderRanking(dashboard.ranking);
   await renderRecords();
@@ -208,7 +268,7 @@ function renderRanking(rows) {
 
 async function renderRecords() {
   const data = await callRpc("search_reprint_vouchers", {
-    p_raffle_id: appConfig.raffleId,
+    p_raffle_id: state.currentRaffleId,
     p_query: document.querySelector("#voucher-search")?.value.trim() || "",
   });
 
@@ -272,7 +332,7 @@ async function renderAdminDashboard() {
   }
 
   const data = await callRpc("get_admin_dashboard", {
-    p_raffle_id: appConfig.raffleId,
+    p_raffle_id: state.currentRaffleId,
   });
   state.adminDashboard = data;
 
@@ -421,9 +481,11 @@ function fillRaffleSettings() {
   }
 
   document.querySelector("#raffle-name").value = raffle.name || "";
+  document.querySelector("#raffle-image").value = raffle.image_url || "";
   document.querySelector("#raffle-prize").value = raffle.prize_description || "";
   document.querySelector("#raffle-draw-date").value = raffle.draw_date || "";
   document.querySelector("#raffle-ticket-price").value = Number(raffle.ticket_price || 0).toFixed(2);
+  document.querySelector("#raffle-total-numbers").value = raffle.total_numbers || "";
   document.querySelector("#raffle-privacy-text").value = raffle.privacy_text || "";
 }
 
@@ -635,7 +697,7 @@ issueForm.addEventListener("submit", async (event) => {
   try {
     issueForm.querySelector("button[type='submit']").disabled = true;
     const vouchers = await callRpc("issue_vouchers", {
-      p_raffle_id: appConfig.raffleId,
+      p_raffle_id: state.currentRaffleId,
       p_customer: customer,
       p_quantity: quantity,
     });
@@ -710,18 +772,43 @@ sellerForm.addEventListener("submit", async (event) => {
   }
 });
 
+raffleCreateForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  try {
+    const raffle = await callRpc("create_raffle", {
+      p_name: document.querySelector("#new-raffle-name").value.trim(),
+      p_image_url: document.querySelector("#new-raffle-image").value.trim(),
+      p_prize_description: document.querySelector("#new-raffle-prize").value.trim(),
+      p_total_numbers: Number(document.querySelector("#new-raffle-total").value || 0),
+      p_ticket_price: Number(document.querySelector("#new-raffle-price").value || 0),
+      p_draw_date: document.querySelector("#new-raffle-date").value || null,
+    });
+    raffleCreateForm.reset();
+    state.currentRaffleId = raffle.id;
+    await loadRaffles();
+    await refreshDashboard();
+    showToast("Rifa criada e selecionada.");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
 raffleSettingsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   try {
     await callRpc("update_raffle_settings", {
-      p_raffle_id: appConfig.raffleId,
+      p_raffle_id: state.currentRaffleId,
       p_name: document.querySelector("#raffle-name").value.trim(),
+      p_image_url: document.querySelector("#raffle-image").value.trim(),
       p_prize_description: document.querySelector("#raffle-prize").value.trim(),
       p_draw_date: document.querySelector("#raffle-draw-date").value || null,
       p_ticket_price: Number(document.querySelector("#raffle-ticket-price").value || 0),
+      p_total_numbers: Number(document.querySelector("#raffle-total-numbers").value || 0),
       p_privacy_text: document.querySelector("#raffle-privacy-text").value.trim(),
     });
+    await loadRaffles();
     await refreshDashboard();
     showToast("Configuracoes salvas.");
   } catch (error) {
@@ -741,6 +828,16 @@ document.querySelector("#refresh-dashboard").addEventListener("click", async () 
   try {
     await refreshDashboard();
     showToast("Painel atualizado.");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+document.querySelector("#refresh-raffles").addEventListener("click", async () => {
+  try {
+    await loadRaffles();
+    await refreshDashboard();
+    showToast("Rifas atualizadas.");
   } catch (error) {
     showToast(error.message);
   }
@@ -781,7 +878,7 @@ document.querySelector("#export-sales").addEventListener("click", exportSales);
 document.querySelector("#export-backup").addEventListener("click", async () => {
   try {
     const backup = await callRpc("get_backup_snapshot", {
-      p_raffle_id: appConfig.raffleId,
+      p_raffle_id: state.currentRaffleId,
     });
     downloadJson(`backup-rifa-${new Date().toISOString().slice(0, 10)}.json`, backup);
   } catch (error) {

@@ -72,6 +72,17 @@
           <button class="tab admin-only" type="button" data-tab="admin-panel">Vendedores</button>
         </nav>
 
+        <section class="raffle-switcher card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Campanhas</p>
+              <h2>Escolha a rifa para vender</h2>
+            </div>
+            <button class="button" id="refresh-raffles" type="button">Atualizar rifas</button>
+          </div>
+          <div class="raffle-list" id="raffle-list"></div>
+        </section>
+
         <section class="panel admin-only" id="admin-control-panel">
           <div class="admin-hero-card">
             <div>
@@ -108,16 +119,56 @@
           </div>
 
           <div class="admin-grid">
+            <form class="card" id="raffle-create-form">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Nova campanha</p>
+                  <h2>Criar rifa</h2>
+                </div>
+              </div>
+              <label>
+                Nome da rifa
+                <input id="new-raffle-name" type="text" required />
+              </label>
+              <label>
+                Foto da rifa
+                <input id="new-raffle-image" type="url" placeholder="https://..." />
+              </label>
+              <label>
+                Premio
+                <input id="new-raffle-prize" type="text" placeholder="Ex: Moto 0km" />
+              </label>
+              <div class="two-columns">
+                <label>
+                  Quantidade
+                  <input id="new-raffle-total" type="number" min="1" value="100000" required />
+                </label>
+                <label>
+                  Valor
+                  <input id="new-raffle-price" type="number" min="0" step="0.01" value="5.00" required />
+                </label>
+              </div>
+              <label>
+                Data do sorteio
+                <input id="new-raffle-date" type="date" />
+              </label>
+              <button class="button primary full" type="submit">Criar rifa</button>
+            </form>
+
             <form class="card" id="raffle-settings-form">
               <div class="section-heading">
                 <div>
                   <p class="eyebrow">Configuracoes</p>
-                  <h2>Dados da rifa</h2>
+                  <h2>Editar rifa selecionada</h2>
                 </div>
               </div>
               <label>
                 Nome da rifa
                 <input id="raffle-name" type="text" required />
+              </label>
+              <label>
+                Foto da rifa
+                <input id="raffle-image" type="url" placeholder="https://..." />
               </label>
               <label>
                 Premio
@@ -133,6 +184,10 @@
                   <input id="raffle-ticket-price" type="number" min="0" step="0.01" />
                 </label>
               </div>
+              <label>
+                Quantidade total de numeros
+                <input id="raffle-total-numbers" type="number" min="1" />
+              </label>
               <label>
                 Texto LGPD / privacidade
                 <textarea id="raffle-privacy-text" rows="4"></textarea>

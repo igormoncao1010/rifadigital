@@ -13,6 +13,8 @@ Sistema multi-vendedor para rifa digital com 100.000 numeros, vouchers 58mm, ran
 - O dono/admin tem um painel separado com metricas, vendas por vendedor, vendas recentes e contatos autorizados para marketing.
 - O cadastro do cliente inclui autorizacao opcional para campanhas futuras.
 - O dono/admin pode configurar nome, premio, data do sorteio, valor por numero e texto de privacidade.
+- O dono/admin pode criar varias rifas com foto, valor, quantidade, premio e data.
+- O vendedor escolhe qual rifa ativa vai vender antes de emitir vouchers.
 - O dono/admin pode cancelar vendas sem liberar os numeros para revenda.
 - O dono/admin pode exportar ranking, vendas, contatos e backup JSON.
 - Cada voucher tem QR Code com token assinado.
@@ -28,6 +30,7 @@ Sistema multi-vendedor para rifa digital com 100.000 numeros, vouchers 58mm, ran
 - `supabase/schema.sql`: tabelas, politicas, ranking e funcoes do banco.
 - `supabase/admin-upgrade.sql`: atualizacao para painel ADM e consentimento de marketing.
 - `supabase/commercial-upgrade.sql`: cancelamento, configuracoes da rifa, relatorios, backup e LGPD operacional.
+- `supabase/multi-raffle-upgrade.sql`: varias rifas ativas, selecao de campanha e criacao de rifas pelo ADM.
 - `supabase/first-owner.sql`: cria o primeiro dono da rifa.
 - `supabase/functions/admin-create-seller/index.ts`: Edge Function para cadastrar vendedores.
 
@@ -78,3 +81,13 @@ Rode `supabase/commercial-upgrade.sql` no SQL Editor do Supabase para habilitar:
 - remocao de contatos das campanhas.
 
 Por seguranca, venda cancelada nao libera os numeros para revenda. Isso preserva a auditoria e evita repeticao de numero.
+
+## Varias Rifas
+
+Rode `supabase/multi-raffle-upgrade.sql` no SQL Editor do Supabase para habilitar:
+
+- criar rifas pelo painel ADM;
+- cadastrar foto, premio, quantidade, valor e data do sorteio;
+- mostrar as rifas ativas para vendedores;
+- vender apenas na rifa selecionada;
+- filtrar ranking, relatorios, reimpressao e backup pela rifa escolhida.
