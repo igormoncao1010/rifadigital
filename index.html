@@ -1,496 +1,170 @@
 <!doctype html>
 <html lang="pt-BR">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Rifa Digital - Supabase</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-      rel="stylesheet"
-    />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mural Digital</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main class="app-shell">
-      <section class="auth-screen" id="auth-screen">
-        <div class="auth-hero">
-          <p class="eyebrow">Rifa Digital</p>
-          <h1>Central surreal de vendas premiadas</h1>
-          <p>
-            Números únicos, vendedores em tempo real, vouchers autenticados e um painel de comando
-            para o dono acompanhar cada detalhe da campanha.
-          </p>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">MD</div>
+          <div>
+            <strong>Mural Digital</strong>
+            <span>Pre-campanha participativa</span>
+          </div>
         </div>
 
-        <form class="card auth-card" id="login-form">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Acesso</p>
-              <h2>Entrar como vendedor</h2>
-            </div>
-          </div>
-          <label>
-            Email
-            <input id="login-email" type="email" autocomplete="email" required />
-          </label>
-          <label>
-            Senha
-            <input id="login-password" type="password" autocomplete="current-password" required />
-          </label>
-          <button class="button primary full" type="submit">Entrar</button>
-          <p class="form-note" id="config-warning"></p>
-        </form>
-      </section>
-
-      <section class="main-app hidden" id="main-app">
-        <header class="topbar">
-          <div>
-            <p class="eyebrow">Painel da rifa</p>
-            <h1 id="main-title">Emissão e ranking</h1>
-          </div>
-          <div class="top-actions">
-            <div class="status-pill">
-              <span id="available-count">100.000</span>
-              <small>números disponíveis</small>
-            </div>
-            <div class="seller-pill">
-              <strong id="seller-name">Vendedor</strong>
-              <small id="seller-role">seller</small>
-            </div>
-            <button class="button light" id="logout-button" type="button">Sair</button>
-          </div>
-        </header>
-
-        <nav class="tabs" aria-label="Modulos do sistema">
-          <button class="tab admin-only" type="button" data-tab="admin-control-panel">Painel ADM</button>
-          <button class="tab active" type="button" data-tab="issue-panel">Emitir</button>
-          <button class="tab" type="button" data-tab="validate-panel">Validar</button>
-          <button class="tab" type="button" data-tab="ranking-panel">Ranking</button>
-          <button class="tab" type="button" data-tab="records-panel">Registros</button>
-          <button class="tab admin-only" type="button" data-tab="admin-panel">Vendedores</button>
+        <nav class="nav-list" aria-label="Navegacao principal">
+          <button class="nav-item active" data-view="feed" type="button"><span aria-hidden="true">#</span>Mural</button>
+          <button class="nav-item" data-view="topics" type="button"><span aria-hidden="true">?</span>Debates</button>
+          <button class="nav-item" data-view="profile" type="button"><span aria-hidden="true">@</span>Perfil</button>
         </nav>
 
-        <section class="raffle-switcher card">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Campanhas</p>
-              <h2>Escolha a rifa para vender</h2>
-            </div>
-            <button class="button" id="refresh-raffles" type="button">Atualizar rifas</button>
+        <section class="rules-panel">
+          <h2>Regras do debate</h2>
+          <p>Ideias fortes, respeito tambem. Evite ataques pessoais, boatos e dados sem fonte.</p>
+        </section>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Comunidade local</p>
+            <h1>Ideias, fotos e conversas em um so mural</h1>
           </div>
-          <div class="raffle-list" id="raffle-list"></div>
+          <div class="account-box" id="accountBox"></div>
+        </header>
+
+        <section class="auth-screen" id="authScreen">
+          <div class="auth-copy">
+            <p class="eyebrow">Entrar no mural</p>
+            <h2>Crie sua conta para publicar e participar dos debates.</h2>
+            <p>Esta versao e um prototipo local. Os dados ficam salvos apenas neste navegador.</p>
+            <div class="signal-strip" aria-label="Indicadores do mural">
+              <span><strong>3</strong> temas ativos</span>
+              <span><strong>24h</strong> conversa aberta</span>
+              <span><strong>1</strong> comunidade</span>
+            </div>
+          </div>
+
+          <form class="auth-card" id="authForm">
+            <div class="segmented-control" role="tablist" aria-label="Modo de acesso">
+              <button class="segment active" data-auth-mode="login" type="button">Login</button>
+              <button class="segment" data-auth-mode="register" type="button">Cadastro</button>
+            </div>
+
+            <label>
+              Nome
+              <input id="nameInput" autocomplete="name" placeholder="Seu nome" />
+            </label>
+            <label>
+              Email
+              <input id="emailInput" autocomplete="email" placeholder="voce@email.com" required type="email" />
+            </label>
+            <label>
+              Senha
+              <input id="passwordInput" autocomplete="current-password" minlength="4" placeholder="Minimo 4 caracteres" required type="password" />
+            </label>
+            <button class="primary-button" type="submit">Entrar</button>
+            <p class="form-note" id="authNote">Use maria@demo.com / 1234 para testar agora.</p>
+          </form>
         </section>
 
-        <section class="panel admin-only" id="admin-control-panel">
-          <div class="admin-hero-card">
-            <div>
-              <p class="eyebrow">Centro de comando</p>
-              <h2>Controle total da rifa</h2>
-              <p>
-                Acompanhe receita, números emitidos, ranking, vendas recentes e contatos autorizados
-                para campanhas futuras.
-              </p>
-            </div>
-            <div class="hero-actions-stack">
-              <button class="button light" id="refresh-admin-dashboard" type="button">Atualizar painel</button>
-              <button class="button light" id="export-backup" type="button">Backup JSON</button>
-            </div>
-          </div>
-
-          <div class="stats-grid admin-metrics">
-            <div class="metric">
-              <span id="admin-revenue">R$ 0,00</span>
-              <p>faturamento total</p>
-            </div>
-            <div class="metric">
-              <span id="admin-issued">0</span>
-              <p>números vendidos</p>
-            </div>
-            <div class="metric">
-              <span id="admin-available">100.000</span>
-              <p>números livres</p>
-            </div>
-            <div class="metric">
-              <span id="admin-customers">0</span>
-              <p>clientes cadastrados</p>
-            </div>
-          </div>
-
-          <div class="admin-grid">
-            <form class="card" id="raffle-create-form">
-              <div class="section-heading">
-                <div>
-                  <p class="eyebrow">Nova campanha</p>
-                  <h2>Criar rifa</h2>
-                </div>
-              </div>
-              <label>
-                Nome da rifa
-                <input id="new-raffle-name" type="text" required />
-              </label>
-              <label>
-                Foto da rifa
-                <input id="new-raffle-image" type="file" accept="image/*" />
-              </label>
-              <label>
-                Prêmio
-                <input id="new-raffle-prize" type="text" placeholder="Ex: Moto 0km" />
-              </label>
-              <div class="two-columns">
-                <label>
-                  Quantidade de números
-                  <input id="new-raffle-total" type="number" min="1" value="100000" required />
-                </label>
-                <label>
-                  Valor
-                  <input id="new-raffle-price" type="number" min="0" step="0.01" value="5.00" required />
-                </label>
-              </div>
-              <label>
-                Data do sorteio
-                <input id="new-raffle-date" type="date" />
-              </label>
-              <button class="button primary full" type="submit">Criar rifa</button>
-            </form>
-
-            <form class="card" id="raffle-settings-form">
-              <div class="section-heading">
-                <div>
-                  <p class="eyebrow">Configurações</p>
-                  <h2>Editar rifa selecionada</h2>
-                </div>
-              </div>
-              <label>
-                Nome da rifa
-                <input id="raffle-name" type="text" required />
-              </label>
-              <label>
-                Foto da rifa
-                <input id="raffle-image" type="file" accept="image/*" />
-                <span class="form-note" id="raffle-current-image">Nenhuma imagem enviada.</span>
-              </label>
-              <label>
-                Prêmio
-                <input id="raffle-prize" type="text" placeholder="Ex: R$ 10.000 no PIX" />
-              </label>
-              <div class="two-columns">
-                <label>
-                  Data do sorteio
-                  <input id="raffle-draw-date" type="date" />
-                </label>
-                <label>
-                  Valor por número
-                  <input id="raffle-ticket-price" type="number" min="0" step="0.01" />
-                </label>
-              </div>
-              <label>
-                Quantidade total de números
-                <input id="raffle-total-numbers" type="number" min="1" />
-              </label>
-              <label>
-                Texto LGPD / privacidade
-                <textarea id="raffle-privacy-text" rows="4"></textarea>
-              </label>
-              <button class="button primary full" type="submit">Salvar configuracoes</button>
-            </form>
-
-            <section class="card">
-              <div class="section-heading">
-                <div>
-                  <p class="eyebrow">Relatorios</p>
-                  <h2>Exportacoes</h2>
-                </div>
-              </div>
-              <div class="report-actions">
-                <button class="button" id="export-ranking" type="button">Ranking CSV</button>
-                <button class="button" id="export-sales" type="button">Vendas CSV</button>
-                <button class="button" id="export-contacts-panel" type="button">Contatos CSV</button>
-              </div>
-              <p class="form-note">
-                Use os relatórios para conferência, pagamento de bônus, backup externo e auditoria.
-              </p>
-            </section>
-          </div>
-
-          <div class="admin-grid">
-            <section class="card">
-              <div class="section-heading">
-                <div>
-                  <p class="eyebrow">Performance</p>
-                  <h2>Vendas por vendedor</h2>
-                </div>
-              </div>
-              <div class="ranking-list" id="admin-seller-performance"></div>
-            </section>
-
-            <section class="card">
-              <div class="section-heading">
-                <div>
-                  <p class="eyebrow">Marketing</p>
-                  <h2>Contatos autorizados</h2>
-                </div>
-                <button class="button" id="export-contacts" type="button">Baixar CSV</button>
-              </div>
-              <div class="contact-list" id="marketing-contacts"></div>
-            </section>
-          </div>
-
-          <section class="card">
-            <div class="section-heading">
+        <div class="workspace hidden" id="workspace">
+          <section class="composer" aria-label="Criar publicacao">
+            <div class="composer-header">
               <div>
-                <p class="eyebrow">Auditoria ADM</p>
-                <h2>Últimas vendas</h2>
+                <p class="eyebrow">Nova publicacao</p>
+                <h2>Compartilhe uma foto e abra conversa</h2>
               </div>
+              <select id="topicSelect" aria-label="Tema do debate"></select>
             </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Data</th>
-                    <th>Vendedor</th>
-                    <th>Cliente</th>
-                    <th>Contato</th>
-                    <th>Qtd.</th>
-                    <th>Total</th>
-                    <th>Status</th>
-                    <th>Acoes</th>
-                  </tr>
-                </thead>
-                <tbody id="admin-sales-table"></tbody>
-              </table>
-            </div>
+
+            <form id="postForm">
+              <textarea id="postText" maxlength="280" placeholder="Qual ideia, problema ou proposta voce quer discutir?" required></textarea>
+              <div class="composer-status">
+                <span id="charCount">0/280</span>
+                <button class="ghost-button hidden" id="clearPhotoButton" type="button">Remover foto</button>
+              </div>
+              <img class="photo-preview hidden" id="photoPreview" alt="Pre-visualizacao da foto selecionada" />
+              <div class="composer-actions">
+                <label class="file-button">
+                  <input id="photoInput" accept="image/*" type="file" />
+                  Foto
+                </label>
+                <span id="photoName">Nenhuma foto selecionada</span>
+                <button class="primary-button" type="submit">Publicar</button>
+              </div>
+            </form>
           </section>
-        </section>
 
-        <section class="panel active" id="issue-panel">
-          <div class="dashboard-grid">
-            <form class="card" id="issue-form">
-              <div class="section-heading">
-                <div>
-                  <p class="eyebrow">Cliente</p>
-                  <h2>Dados da compra</h2>
+          <section class="content-grid">
+            <section class="feed-column" id="feedView">
+              <div class="section-title">
+                <h2>Mural da comunidade</h2>
+                <div class="feed-tools">
+                  <input id="searchInput" placeholder="Buscar no mural" type="search" />
+                  <select id="filterSelect" aria-label="Filtrar por tema">
+                    <option value="all">Todos os temas</option>
+                  </select>
                 </div>
               </div>
+              <div class="post-list" id="postList"></div>
+            </section>
 
-              <label>
-                Nome completo
-                <input id="buyer-name" name="name" type="text" autocomplete="name" required />
-              </label>
-
-              <div class="two-columns">
-                <label>
-                  Telefone
-                  <input id="buyer-phone" name="phone" type="tel" autocomplete="tel" required />
-                </label>
-                <label>
-                  CPF
-                  <input id="buyer-cpf" name="cpf" type="text" inputmode="numeric" required />
-                </label>
+            <section class="topics-column" id="topicsView">
+              <div class="section-title">
+                <h2>Temas em debate</h2>
               </div>
+              <form class="topic-form" id="topicForm">
+                <input id="newTopicInput" maxlength="40" placeholder="Novo tema" required />
+                <button class="icon-button" title="Adicionar tema" type="submit">+</button>
+              </form>
+              <div class="topic-list" id="topicList"></div>
+            </section>
 
-              <label>
-                E-mail
-                <input id="buyer-email" name="email" type="email" autocomplete="email" required />
-              </label>
-
-              <label class="check-row">
-                <input id="marketing-consent" type="checkbox" />
-                <span>Cliente autoriza receber campanhas e avisos desta rifa por e-mail ou telefone.</span>
-              </label>
-
-              <div class="two-columns">
-                <label>
-                  Quantidade
-                  <input id="ticket-quantity" name="quantity" type="number" min="1" max="100" value="1" required />
-                </label>
-                <label>
-                  Valor unitario
-                  <input id="ticket-price" value="R$ 5,00" readonly />
-                </label>
+            <section class="profile-column" id="profileView">
+              <div class="section-title">
+                <h2>Seu perfil</h2>
               </div>
+              <div class="profile-panel" id="profilePanel"></div>
+            </section>
+          </section>
+        </div>
+      </main>
+    </div>
 
-              <div class="summary">
-                <div>
-                  <span>Total da compra</span>
-                  <strong id="purchase-total">R$ 5,00</strong>
-                </div>
-                <div>
-                  <span>Vendedor</span>
-                  <strong id="seller-sales-count">0 vendas</strong>
-                </div>
-              </div>
-
-              <button class="button primary full" type="submit">Gerar vouchers</button>
-              <p class="form-note">
-                A emissão acontece no Supabase. Todos os vendedores competem pelos números da rifa selecionada.
-              </p>
-            </form>
-
-            <aside class="card">
-              <div class="section-heading">
-                <div>
-                  <p class="eyebrow">Saida</p>
-                  <h2>Vouchers 58mm</h2>
-                </div>
-                <button class="button" id="print-vouchers" type="button">Imprimir</button>
-              </div>
-              <div class="voucher-stack" id="voucher-output">
-                <div class="empty-state">Os vouchers gerados aparecem aqui prontos para impressão.</div>
-              </div>
-            </aside>
+    <template id="postTemplate">
+      <article class="post-card">
+        <div class="post-meta">
+          <div class="avatar"></div>
+          <div>
+            <strong class="post-author"></strong>
+            <span class="post-time"></span>
           </div>
-        </section>
+          <span class="topic-pill"></span>
+        </div>
+        <p class="post-body"></p>
+        <img class="post-photo" alt="" />
+        <div class="post-owner-actions hidden">
+          <button class="ghost-button edit-post-button" type="button">Editar</button>
+          <button class="danger-button delete-post-button" type="button">Excluir</button>
+        </div>
+        <div class="post-actions">
+          <button class="like-button" type="button"></button>
+          <button class="comment-toggle" type="button">Comentar</button>
+        </div>
+        <div class="comments"></div>
+        <form class="comment-form">
+          <input maxlength="160" placeholder="Entre no debate com respeito" required />
+          <button type="submit">Enviar</button>
+        </form>
+      </article>
+    </template>
 
-        <section class="panel" id="validate-panel">
-          <div class="dashboard-grid">
-            <form class="card" id="validate-form">
-              <div class="section-heading">
-                <div>
-                  <p class="eyebrow">Leitor oficial</p>
-                  <h2>Validar voucher</h2>
-                </div>
-              </div>
-              <label>
-                Token lido do QR Code
-                <textarea id="validation-token" rows="8" required></textarea>
-              </label>
-              <div class="scanner-box hidden" id="scanner-box">
-                <video id="qr-video" playsinline muted></video>
-                <canvas id="qr-canvas" class="hidden"></canvas>
-              </div>
-              <button class="button full" id="scan-qr-button" type="button">Ler QR pela câmera</button>
-              <button class="button full hidden" id="stop-scan-button" type="button">Parar câmera</button>
-              <button class="button primary full" type="submit">Validar no banco</button>
-              <p class="form-note">
-                Qualquer leitor comum pode enxergar um token, mas apenas este aplicativo valida a assinatura no Supabase.
-              </p>
-            </form>
-
-            <aside class="card validation-result" id="validation-result">
-              <div class="empty-state">A validação aparece aqui.</div>
-            </aside>
-          </div>
-        </section>
-
-        <section class="panel" id="ranking-panel">
-          <div class="stats-grid">
-            <div class="metric">
-              <span id="issued-count">0</span>
-              <p>números vendidos</p>
-            </div>
-            <div class="metric">
-              <span id="revenue-total">R$ 0,00</span>
-              <p>faturamento total</p>
-            </div>
-            <div class="metric">
-              <span id="seller-position">-</span>
-              <p>sua posição</p>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="section-heading">
-              <div>
-                <p class="eyebrow">Bônus</p>
-                <h2>Ranking dos vendedores</h2>
-              </div>
-              <button class="button" id="refresh-dashboard" type="button">Atualizar</button>
-            </div>
-            <div class="ranking-list" id="ranking-list"></div>
-          </div>
-        </section>
-
-        <section class="panel" id="records-panel">
-          <div class="card">
-            <div class="section-heading">
-              <div>
-                <p class="eyebrow">Auditoria</p>
-                <h2>Buscar e reimprimir vouchers</h2>
-              </div>
-            </div>
-            <form class="search-bar" id="voucher-search-form">
-              <label>
-                CPF, nome, e-mail, telefone ou número
-                <input id="voucher-search" type="search" placeholder="Ex: 312.321.312-31 ou Ana Martins" />
-              </label>
-              <button class="button primary" type="submit">Pesquisar</button>
-              <button class="button" id="clear-voucher-search" type="button">Limpar</button>
-            </form>
-            <p class="form-note">
-              Clique em uma venda para carregar os vouchers e reimprimir em 58mm.
-            </p>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Numero</th>
-                    <th>Cliente</th>
-                    <th>CPF</th>
-                    <th>Vendedor</th>
-                    <th>Emitido em</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody id="records-table"></tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel" id="admin-panel">
-          <div class="dashboard-grid">
-            <form class="card" id="seller-form">
-              <div class="section-heading">
-                <div>
-                  <p class="eyebrow">Dono da rifa</p>
-                  <h2>Cadastrar vendedor</h2>
-                </div>
-              </div>
-              <label>
-                Nome do vendedor
-                <input id="new-seller-name" type="text" required />
-              </label>
-              <label>
-                Email de acesso
-                <input id="new-seller-email" type="email" required />
-              </label>
-              <label>
-                Senha inicial
-                <input id="new-seller-password" type="password" minlength="6" required />
-              </label>
-              <label>
-                Telefone
-                <input id="new-seller-phone" type="tel" />
-              </label>
-              <button class="button primary full" type="submit">Cadastrar vendedor</button>
-              <p class="form-note">
-                Esta acao usa uma Edge Function com service role. Ela precisa ser publicada no Supabase.
-              </p>
-            </form>
-
-            <aside class="card">
-              <div class="section-heading">
-                <div>
-                  <p class="eyebrow">Equipe</p>
-                  <h2>Vendedores cadastrados</h2>
-                </div>
-              </div>
-              <div class="seller-list" id="seller-list"></div>
-            </aside>
-          </div>
-        </section>
-      </section>
-    </main>
-
-    <div class="print-area" id="print-area"></div>
-    <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-    <script src="config.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

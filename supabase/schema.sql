@@ -1,792 +1,849 @@
-create extension if not exists pgcrypto;
+create extension if not exists "pgcrypto";
 
-create table if not exists public.raffles (
-  id uuid primary key default gen_random_uuid(),
-  name text not null default 'Rifa Digital Premiada',
-  total_numbers integer not null default 100000 check (total_numbers > 0),
-  ticket_price numeric(10, 2) not null default 5.00 check (ticket_price >= 0),
-  image_url text,
-  prize_description text,
-  draw_date date,
-  privacy_text text default 'Autorizo o uso dos meus dados para contato sobre esta rifa e campanhas relacionadas.',
-  secret_key text not null default encode(gen_random_bytes(32), 'hex'),
-  active boolean not null default true,
-  created_at timestamptz not null default now()
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  name text not null,
+  email text,
+  neighborhood text default '',
+  contact text default '',
+  bio text default '',
+  avatar_url text default '',
+  role text default 'member',
+  badge_title text default '',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
-create table if not exists public.sellers (
+alter table public.profiles add column if not exists contact text default '';
+alter table public.profiles add column if not exists role text default 'member';
+alter table public.profiles add column if not exists badge_title text default '';
+
+create table if not exists public.posts (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null unique references auth.users(id) on delete cascade,
-  name text not null,
-  email text not null unique,
-  phone text,
-  role text not null default 'seller' check (role in ('owner', 'admin', 'seller')),
-  active boolean not null default true,
-  created_at timestamptz not null default now()
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  topic text not null,
+  category text default 'problema',
+  issue_status text default 'aberto',
+  street text default '',
+  neighborhood text default '',
+  body text not null,
+  image_url text default '',
+  admin_response text default '',
+  status_updated_by uuid references public.profiles(id) on delete set null,
+  status_updated_at timestamptz,
+  share_count integer default 0,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
-create table if not exists public.customers (
+alter table public.posts add column if not exists share_count integer default 0;
+alter table public.posts add column if not exists category text default 'problema';
+alter table public.posts add column if not exists issue_status text default 'aberto';
+alter table public.posts add column if not exists admin_response text default '';
+alter table public.posts add column if not exists status_updated_by uuid references public.profiles(id) on delete set null;
+alter table public.posts add column if not exists status_updated_at timestamptz;
+
+create table if not exists public.comments (
   id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references public.posts(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  body text not null,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.likes (
+  post_id uuid not null references public.posts(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz default now(),
+  primary key (post_id, user_id)
+);
+
+create table if not exists public.follows (
+  follower_id uuid not null references public.profiles(id) on delete cascade,
+  following_id uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz default now(),
+  primary key (follower_id, following_id),
+  check (follower_id <> following_id)
+);
+
+create table if not exists public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  recipient_id uuid not null references public.profiles(id) on delete cascade,
+  actor_id uuid references public.profiles(id) on delete set null,
+  type text not null check (type in ('like', 'comment', 'status', 'admin_response')),
+  post_id uuid references public.posts(id) on delete cascade,
+  comment_id uuid references public.comments(id) on delete cascade,
+  read_at timestamptz,
+  created_at timestamptz default now()
+);
+
+alter table public.notifications drop constraint if exists notifications_type_check;
+alter table public.notifications add constraint notifications_type_check check (type in ('like', 'comment', 'status', 'admin_response'));
+
+create table if not exists public.reports (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid references public.posts(id) on delete cascade,
+  comment_id uuid references public.comments(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  reason text not null,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.debates (
+  id uuid primary key default gen_random_uuid(),
+  slug text not null unique,
+  title text not null,
+  description text default '',
+  status text default 'active',
+  created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists public.candidate_pages (
+  slug text primary key,
   name text not null,
-  phone text not null,
   email text not null,
-  cpf text not null,
-  marketing_consent boolean not null default false,
-  created_at timestamptz not null default now()
+  role text default '',
+  bio text default '',
+  image_url text default '',
+  profile_image_url text default '',
+  story_image_url text default '',
+  cover_image_url text default '',
+  text_color text default '#ffffff',
+  background_color text default '#111111',
+  accent_color text default '#111111',
+  status text default 'active',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
-create table if not exists public.sales (
+alter table public.candidate_pages add column if not exists profile_image_url text default '';
+alter table public.candidate_pages add column if not exists story_image_url text default '';
+alter table public.candidate_pages add column if not exists cover_image_url text default '';
+alter table public.candidate_pages add column if not exists text_color text default '#ffffff';
+alter table public.candidate_pages add column if not exists background_color text default '#111111';
+alter table public.candidate_pages add column if not exists accent_color text default '#111111';
+
+create table if not exists public.candidate_questions (
   id uuid primary key default gen_random_uuid(),
-  raffle_id uuid not null references public.raffles(id),
-  seller_id uuid not null references public.sellers(id),
-  customer_id uuid not null references public.customers(id),
-  quantity integer not null check (quantity > 0),
-  unit_price numeric(10, 2) not null,
-  total_amount numeric(10, 2) not null,
-  status text not null default 'active' check (status in ('active', 'cancelled')),
-  cancelled_at timestamptz,
-  cancelled_by uuid references public.sellers(id),
-  cancel_reason text,
-  created_at timestamptz not null default now()
+  candidate_slug text not null references public.candidate_pages(slug) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  topic text not null,
+  question text not null,
+  answer text default '',
+  answered_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
-create table if not exists public.vouchers (
+create table if not exists public.airdrops (
   id uuid primary key default gen_random_uuid(),
-  raffle_id uuid not null references public.raffles(id),
-  sale_id uuid not null references public.sales(id),
-  seller_id uuid not null references public.sellers(id),
-  customer_id uuid not null references public.customers(id),
-  ticket_number integer not null check (ticket_number > 0),
-  status text not null default 'issued' check (status in ('issued', 'validated', 'cancelled')),
-  token text not null unique,
-  signature text not null,
-  previous_hash text not null,
-  record_hash text not null unique,
-  created_at timestamptz not null default now(),
-  unique (raffle_id, ticket_number)
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  caption text default '',
+  image_url text default '',
+  image_path text default '',
+  font_family text default 'Inter, system-ui, sans-serif',
+  text_color text default '#ffffff',
+  background_color text default '#111111',
+  text_position text default 'bottom',
+  text_align text default 'left',
+  expires_at timestamptz not null,
+  created_at timestamptz default now()
 );
 
-create table if not exists public.validations (
-  id uuid primary key default gen_random_uuid(),
-  voucher_id uuid references public.vouchers(id),
-  seller_id uuid references public.sellers(id),
-  token text not null,
-  result text not null,
-  message text not null,
-  created_at timestamptz not null default now()
+alter table public.airdrops alter column image_url drop not null;
+alter table public.airdrops alter column image_url set default '';
+alter table public.airdrops add column if not exists image_path text default '';
+alter table public.airdrops add column if not exists text_position text default 'bottom';
+alter table public.airdrops add column if not exists text_align text default 'left';
+
+create table if not exists public.airdrop_views (
+  airdrop_id uuid not null references public.airdrops(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  viewed_at timestamptz default now(),
+  primary key (airdrop_id, user_id)
 );
 
-create index if not exists idx_sales_raffle_seller on public.sales (raffle_id, seller_id);
-create index if not exists idx_sales_customer on public.sales (customer_id);
-create index if not exists idx_vouchers_raffle_seller on public.vouchers (raffle_id, seller_id);
-create index if not exists idx_vouchers_sale on public.vouchers (sale_id);
-create index if not exists idx_vouchers_customer on public.vouchers (customer_id);
-create index if not exists idx_validations_seller on public.validations (seller_id, created_at desc);
+create index if not exists airdrops_expires_at_idx on public.airdrops (expires_at);
+create index if not exists airdrops_user_created_idx on public.airdrops (user_id, created_at desc);
+create index if not exists airdrop_views_user_idx on public.airdrop_views (user_id);
 
-insert into public.raffles (name, total_numbers, ticket_price)
-select 'Rifa Digital Premiada', 100000, 5.00
-where not exists (select 1 from public.raffles);
-
-alter table public.raffles enable row level security;
-alter table public.sellers enable row level security;
-alter table public.customers enable row level security;
-alter table public.sales enable row level security;
-alter table public.vouchers enable row level security;
-alter table public.validations enable row level security;
-
-create or replace view public.voucher_history as
-select
-  v.id,
-  v.ticket_number,
-  c.name as customer_name,
-  s.name as seller_name,
-  v.created_at,
-  v.status
-from public.vouchers v
-join public.customers c on c.id = v.customer_id
-join public.sellers s on s.id = v.seller_id;
-
-alter view public.voucher_history set (security_invoker = true);
-
-create or replace function public.current_seller()
-returns public.sellers
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select *
-  from public.sellers
-  where user_id = auth.uid()
-    and active = true
-  limit 1;
-$$;
+drop trigger if exists on_auth_user_created on auth.users;
+drop function if exists public.handle_new_user();
 
 create or replace function public.is_admin()
 returns boolean
 language sql
-stable
 security definer
 set search_path = public
 as $$
   select exists (
     select 1
-    from public.sellers
-    where user_id = auth.uid()
-      and active = true
-      and role in ('owner', 'admin')
+    from public.profiles
+    where id = auth.uid()
+      and role = 'admin'
   );
 $$;
 
-drop policy if exists "authenticated can read active raffle" on public.raffles;
-create policy "authenticated can read active raffle"
-on public.raffles
-for select
-to authenticated
-using (active = true);
+create or replace function public.protect_profile_role()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if current_role in ('postgres', 'service_role', 'supabase_admin') then
+    return new;
+  end if;
 
-drop policy if exists "authenticated can read sellers" on public.sellers;
-create policy "authenticated can read sellers"
-on public.sellers
-for select
+  if tg_op = 'INSERT' and coalesce(new.role, 'member') <> 'member' and not public.is_admin() then
+    raise exception 'Only admins can create admin profiles';
+  end if;
+
+  if tg_op = 'UPDATE' and old.role is distinct from new.role and not public.is_admin() then
+    raise exception 'Only admins can change profile roles';
+  end if;
+
+  return new;
+end;
+$$;
+
+create or replace function public.increment_post_share(post_id_input uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.posts
+  set share_count = coalesce(share_count, 0) + 1
+  where id = post_id_input;
+$$;
+
+create or replace function public.cleanup_expired_airdrops()
+returns integer
+language plpgsql
+security definer
+set search_path = public, storage
+as $$
+declare
+  deleted_count integer := 0;
+begin
+  with expired as (
+    select
+      id,
+      coalesce(
+        nullif(image_path, ''),
+        nullif(split_part(image_url, '/storage/v1/object/public/airdrop-images/', 2), '')
+      ) as object_name
+    from public.airdrops
+    where expires_at <= now()
+  ),
+  deleted_files as (
+    delete from storage.objects o
+    using expired
+    where o.bucket_id = 'airdrop-images'
+      and expired.object_name is not null
+      and o.name = expired.object_name
+    returning o.id
+  ),
+  deleted_airdrops as (
+    delete from public.airdrops a
+    using expired
+    where a.id = expired.id
+    returning a.id
+  )
+  select count(*) into deleted_count from deleted_airdrops;
+
+  return deleted_count;
+end;
+$$;
+
+grant execute on function public.cleanup_expired_airdrops() to authenticated;
+
+drop trigger if exists protect_profile_role on public.profiles;
+create trigger protect_profile_role
+before insert or update on public.profiles
+for each row execute function public.protect_profile_role();
+
+alter table public.profiles enable row level security;
+alter table public.posts enable row level security;
+alter table public.comments enable row level security;
+alter table public.likes enable row level security;
+alter table public.follows enable row level security;
+alter table public.notifications enable row level security;
+alter table public.reports enable row level security;
+alter table public.debates enable row level security;
+alter table public.candidate_pages enable row level security;
+alter table public.candidate_questions enable row level security;
+alter table public.airdrops enable row level security;
+alter table public.airdrop_views enable row level security;
+
+drop policy if exists "profiles are visible to authenticated users" on public.profiles;
+create policy "profiles are visible to authenticated users"
+on public.profiles for select
 to authenticated
 using (true);
 
-drop policy if exists "authenticated can read customers" on public.customers;
-create policy "authenticated can read customers"
-on public.customers
-for select
+drop policy if exists "users can insert their profile" on public.profiles;
+create policy "users can insert their profile"
+on public.profiles for insert
+to authenticated
+with check (auth.uid() = id);
+
+drop policy if exists "users can update their profile" on public.profiles;
+create policy "users can update their profile"
+on public.profiles for update
+to authenticated
+using (auth.uid() = id)
+with check (auth.uid() = id);
+
+drop policy if exists "admins can update profiles" on public.profiles;
+create policy "admins can update profiles"
+on public.profiles for update
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists "admins can delete profiles" on public.profiles;
+create policy "admins can delete profiles"
+on public.profiles for delete
+to authenticated
+using (public.is_admin() and auth.uid() <> id);
+
+drop policy if exists "posts are visible to authenticated users" on public.posts;
+create policy "posts are visible to authenticated users"
+on public.posts for select
+to authenticated
+using (true);
+
+drop policy if exists "users can create posts" on public.posts;
+create policy "users can create posts"
+on public.posts for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "users can update their posts" on public.posts;
+create policy "users can update their posts"
+on public.posts for update
+to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "admins can moderate posts" on public.posts;
+create policy "admins can moderate posts"
+on public.posts for update
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists "users can delete their posts" on public.posts;
+create policy "users can delete their posts"
+on public.posts for delete
+to authenticated
+using (auth.uid() = user_id or public.is_admin());
+
+drop policy if exists "comments are visible to authenticated users" on public.comments;
+create policy "comments are visible to authenticated users"
+on public.comments for select
+to authenticated
+using (true);
+
+drop policy if exists "users can create comments" on public.comments;
+create policy "users can create comments"
+on public.comments for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "users can delete their comments" on public.comments;
+create policy "users can delete their comments"
+on public.comments for delete
+to authenticated
+using (auth.uid() = user_id or public.is_admin());
+
+drop policy if exists "likes are visible to authenticated users" on public.likes;
+create policy "likes are visible to authenticated users"
+on public.likes for select
+to authenticated
+using (true);
+
+drop policy if exists "users can like posts" on public.likes;
+create policy "users can like posts"
+on public.likes for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "users can remove their likes" on public.likes;
+create policy "users can remove their likes"
+on public.likes for delete
+to authenticated
+using (auth.uid() = user_id);
+
+drop policy if exists "follows are visible to authenticated users" on public.follows;
+create policy "follows are visible to authenticated users"
+on public.follows for select
+to authenticated
+using (true);
+
+drop policy if exists "users can follow profiles" on public.follows;
+create policy "users can follow profiles"
+on public.follows for insert
+to authenticated
+with check (auth.uid() = follower_id);
+
+drop policy if exists "users can unfollow profiles" on public.follows;
+create policy "users can unfollow profiles"
+on public.follows for delete
+to authenticated
+using (auth.uid() = follower_id);
+
+drop policy if exists "users can view their notifications" on public.notifications;
+create policy "users can view their notifications"
+on public.notifications for select
+to authenticated
+using (auth.uid() = recipient_id);
+
+drop policy if exists "users can create notifications" on public.notifications;
+create policy "users can create notifications"
+on public.notifications for insert
+to authenticated
+with check (auth.uid() = actor_id and auth.uid() <> recipient_id);
+
+drop policy if exists "users can mark their notifications as read" on public.notifications;
+create policy "users can mark their notifications as read"
+on public.notifications for update
+to authenticated
+using (auth.uid() = recipient_id)
+with check (auth.uid() = recipient_id);
+
+drop policy if exists "users can create reports" on public.reports;
+create policy "users can create reports"
+on public.reports for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "admins can view reports" on public.reports;
+create policy "admins can view reports"
+on public.reports for select
+to authenticated
+using (public.is_admin());
+
+drop policy if exists "active debates are visible" on public.debates;
+create policy "active debates are visible"
+on public.debates for select
+to authenticated
+using (status = 'active' or public.is_admin());
+
+drop policy if exists "admins can create debates" on public.debates;
+create policy "admins can create debates"
+on public.debates for insert
+to authenticated
+with check (public.is_admin());
+
+drop policy if exists "admins can update debates" on public.debates;
+create policy "admins can update debates"
+on public.debates for update
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists "admins can delete debates" on public.debates;
+create policy "admins can delete debates"
+on public.debates for delete
+to authenticated
+using (public.is_admin());
+
+drop policy if exists "active candidate pages are visible" on public.candidate_pages;
+create policy "active candidate pages are visible"
+on public.candidate_pages for select
+to authenticated
+using (status = 'active' or public.is_admin());
+
+drop policy if exists "admins can manage candidate pages" on public.candidate_pages;
+create policy "admins can manage candidate pages"
+on public.candidate_pages for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists "candidates can update their candidate page media" on public.candidate_pages;
+create policy "candidates can update their candidate page media"
+on public.candidate_pages for update
+to authenticated
+using (lower(email) = lower(auth.jwt() ->> 'email'))
+with check (lower(email) = lower(auth.jwt() ->> 'email'));
+
+drop policy if exists "candidate questions are visible" on public.candidate_questions;
+create policy "candidate questions are visible"
+on public.candidate_questions for select
+to authenticated
+using (true);
+
+drop policy if exists "users can ask candidate questions" on public.candidate_questions;
+create policy "users can ask candidate questions"
+on public.candidate_questions for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "candidates can answer their questions" on public.candidate_questions;
+create policy "candidates can answer their questions"
+on public.candidate_questions for update
 to authenticated
 using (
   public.is_admin()
   or exists (
     select 1
-    from public.sales sa
-    where sa.customer_id = customers.id
-      and sa.seller_id = (public.current_seller()).id
+    from public.candidate_pages candidate
+    where candidate.slug = public.candidate_questions.candidate_slug
+      and lower(candidate.email) = lower(auth.jwt() ->> 'email')
+  )
+)
+with check (
+  public.is_admin()
+  or exists (
+    select 1
+    from public.candidate_pages candidate
+    where candidate.slug = public.candidate_questions.candidate_slug
+      and lower(candidate.email) = lower(auth.jwt() ->> 'email')
   )
 );
 
-drop policy if exists "authenticated can read sales" on public.sales;
-create policy "authenticated can read sales"
-on public.sales
-for select
+drop policy if exists "users and admins can delete candidate questions" on public.candidate_questions;
+create policy "users and admins can delete candidate questions"
+on public.candidate_questions for delete
 to authenticated
-using (public.is_admin() or seller_id = (public.current_seller()).id);
+using (auth.uid() = user_id or public.is_admin());
 
-drop policy if exists "authenticated can read vouchers" on public.vouchers;
-create policy "authenticated can read vouchers"
-on public.vouchers
-for select
+drop policy if exists "active airdrops are visible" on public.airdrops;
+create policy "active airdrops are visible"
+on public.airdrops for select
 to authenticated
-using (public.is_admin() or seller_id = (public.current_seller()).id);
+using (expires_at > now() or auth.uid() = user_id or public.is_admin());
 
-drop policy if exists "authenticated can read validations" on public.validations;
-create policy "authenticated can read validations"
-on public.validations
-for select
+drop policy if exists "users can create airdrops" on public.airdrops;
+create policy "users can create airdrops"
+on public.airdrops for insert
 to authenticated
-using (public.is_admin() or seller_id = (public.current_seller()).id);
+with check (auth.uid() = user_id and expires_at <= now() + interval '24 hours 5 minutes');
 
-grant usage on schema public to anon, authenticated;
-grant select on public.raffles, public.sellers, public.customers, public.sales, public.vouchers, public.validations to authenticated;
-grant select on public.voucher_history to authenticated;
+drop policy if exists "users can delete their airdrops" on public.airdrops;
+create policy "users can delete their airdrops"
+on public.airdrops for delete
+to authenticated
+using (auth.uid() = user_id or public.is_admin());
 
-create or replace function public.sign_voucher(
-  p_secret text,
-  p_voucher_id uuid,
-  p_raffle_id uuid,
-  p_sale_id uuid,
-  p_seller_id uuid,
-  p_customer_id uuid,
-  p_ticket_number integer,
-  p_created_at timestamptz,
-  p_previous_hash text
-)
-returns text
-language sql
-immutable
-as $$
-  select encode(
-    extensions.hmac(
-      convert_to(
-        concat_ws('|', p_voucher_id, p_raffle_id, p_sale_id, p_seller_id, p_customer_id, p_ticket_number, p_created_at, p_previous_hash),
-        'utf8'
-      ),
-      convert_to(p_secret, 'utf8'),
-      'sha256'::text
-    ),
-    'hex'
-  );
-$$;
+drop policy if exists "users can view their airdrop views" on public.airdrop_views;
+create policy "users can view their airdrop views"
+on public.airdrop_views for select
+to authenticated
+using (auth.uid() = user_id);
 
-create or replace function public.hash_voucher_record(
-  p_voucher_id uuid,
-  p_raffle_id uuid,
-  p_sale_id uuid,
-  p_seller_id uuid,
-  p_customer_id uuid,
-  p_ticket_number integer,
-  p_created_at timestamptz,
-  p_previous_hash text,
-  p_signature text
-)
-returns text
-language sql
-immutable
-as $$
-  select encode(
-    extensions.digest(
-      concat_ws('|', p_voucher_id, p_raffle_id, p_sale_id, p_seller_id, p_customer_id, p_ticket_number, p_created_at, p_previous_hash, p_signature),
-      'sha256'::text
-    ),
-    'hex'
-  );
-$$;
+drop policy if exists "users can register airdrop views" on public.airdrop_views;
+create policy "users can register airdrop views"
+on public.airdrop_views for insert
+to authenticated
+with check (auth.uid() = user_id);
 
-create or replace function public.build_voucher_token(p_voucher_id uuid, p_ticket_number integer, p_signature text)
-returns text
-language sql
-immutable
-as $$
-  select replace(
-    encode(
-      convert_to(
-        jsonb_build_object('v', 1, 'id', p_voucher_id, 'n', p_ticket_number, 'sig', p_signature)::text,
-        'utf8'
-      ),
-      'base64'
-    ),
-    E'\n',
-    ''
-  );
-$$;
+insert into public.debates (slug, title, description, status)
+values
+  ('infraestrutura', 'Infraestrutura', 'Ruas, calçadas, iluminação e obras.', 'active'),
+  ('saude', 'Saúde', 'Atendimento, filas, unidades e prevenção.', 'active'),
+  ('educacao', 'Educação', 'Escolas, creches, transporte e aprendizagem.', 'active'),
+  ('seguranca', 'Segurança', 'Iluminação, rondas e pontos de risco.', 'active'),
+  ('mobilidade', 'Mobilidade', 'Transporte, acessibilidade e trânsito.', 'active')
+on conflict (slug) do update
+set title = excluded.title,
+    description = excluded.description,
+    status = excluded.status;
 
-revoke all on function public.sign_voucher(text, uuid, uuid, uuid, uuid, uuid, integer, timestamptz, text) from public;
-revoke all on function public.hash_voucher_record(uuid, uuid, uuid, uuid, uuid, integer, timestamptz, text, text) from public;
-revoke all on function public.build_voucher_token(uuid, integer, text) from public;
-
-create or replace function public.issue_vouchers(
-  p_raffle_id uuid default null,
-  p_customer jsonb default '{}'::jsonb,
-  p_quantity integer default 1
-)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_seller public.sellers;
-  v_raffle public.raffles;
-  v_customer_id uuid;
-  v_sale_id uuid;
-  v_numbers integer[];
-  v_number integer;
-  v_voucher_id uuid;
-  v_created_at timestamptz;
-  v_previous_hash text;
-  v_signature text;
-  v_record_hash text;
-  v_token text;
-  v_result jsonb := '[]'::jsonb;
-begin
-  select * into v_seller
-  from public.sellers
-  where user_id = auth.uid()
-    and active = true
-  limit 1;
-
-  if v_seller.id is null then
-    raise exception 'Vendedor sem acesso ativo.';
-  end if;
-
-  if p_quantity < 1 or p_quantity > 100 then
-    raise exception 'Quantidade deve estar entre 1 e 100.';
-  end if;
-
-  select * into v_raffle
-  from public.raffles
-  where id = coalesce(p_raffle_id, (select id from public.raffles where active = true order by created_at asc limit 1))
-    and active = true
-  limit 1;
-
-  if v_raffle.id is null then
-    raise exception 'Rifa ativa nao encontrada.';
-  end if;
-
-  perform pg_advisory_xact_lock(hashtext(v_raffle.id::text));
-
-  if (select count(*) from public.vouchers where raffle_id = v_raffle.id) + p_quantity > v_raffle.total_numbers then
-    raise exception 'Nao existem numeros suficientes disponiveis.';
-  end if;
-
-  insert into public.customers (name, phone, email, cpf, marketing_consent)
-  values (
-    trim(p_customer->>'name'),
-    trim(p_customer->>'phone'),
-    trim(p_customer->>'email'),
-    trim(p_customer->>'cpf'),
-    coalesce((p_customer->>'marketing_consent')::boolean, false)
+insert into public.candidate_pages (slug, name, email, role, bio, image_url, story_image_url, cover_image_url, text_color, background_color, accent_color, status)
+values
+  (
+    'ana-martins',
+    'Ana Martins',
+    'anamartins@nodus.com.br',
+    'Educação',
+    'Debate público sobre escolas, creches, transporte e aprendizagem.',
+    'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=420&q=80',
+    'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=1200&q=85',
+    '#ffffff',
+    '#111111',
+    '#0f766e',
+    'active'
+  ),
+  (
+    'carlos-rocha',
+    'Carlos Rocha',
+    'carlosrocha@nodus.com.br',
+    'Infraestrutura',
+    'Debate público sobre ruas, calçadas, iluminação e obras.',
+    'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=420&q=80',
+    'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=1200&q=85',
+    '#ffffff',
+    '#111111',
+    '#2563eb',
+    'active'
+  ),
+  (
+    'marina-alves',
+    'Marina Alves',
+    'marinaalves@nodus.com.br',
+    'Saúde',
+    'Debate público sobre atendimento, filas e prevenção.',
+    'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=420&q=80',
+    'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=1200&q=85',
+    '#ffffff',
+    '#111111',
+    '#dc2626',
+    'active'
+  ),
+  (
+    'rafael-lima',
+    'Rafael Lima',
+    'rafaellima@nodus.com.br',
+    'Mobilidade',
+    'Transporte, acessibilidade, trânsito e deslocamento.',
+    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=420&q=80',
+    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=1200&q=85',
+    '#ffffff',
+    '#111111',
+    '#7c3aed',
+    'active'
+  ),
+  (
+    'bianca-torres',
+    'Bianca Torres',
+    'biancatorres@nodus.com.br',
+    'Segurança',
+    'Iluminação, rondas, prevenção e pontos de risco.',
+    'https://images.unsplash.com/photo-1598550874175-4d0ef436c909?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1598550874175-4d0ef436c909?auto=format&fit=crop&w=420&q=80',
+    'https://images.unsplash.com/photo-1598550874175-4d0ef436c909?auto=format&fit=crop&w=1200&q=85',
+    '#ffffff',
+    '#111111',
+    '#f97316',
+    'active'
+  ),
+  (
+    'henrique-nunes',
+    'Henrique Nunes',
+    'henriquenunes@nodus.com.br',
+    'Juventude',
+    'Projetos para juventude, esporte e oportunidade.',
+    'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=420&q=80',
+    'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=1200&q=85',
+    '#ffffff',
+    '#111111',
+    '#0891b2',
+    'active'
+  ),
+  (
+    'paula-ribeiro',
+    'Paula Ribeiro',
+    'paularibeiro@nodus.com.br',
+    'Cultura',
+    'Cultura, periferia, economia criativa e participação.',
+    'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=420&q=80',
+    'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=1200&q=85',
+    '#ffffff',
+    '#111111',
+    '#db2777',
+    'active'
+  ),
+  (
+    'leandro-costa',
+    'Leandro Costa',
+    'leandrocosta@nodus.com.br',
+    'Trabalho',
+    'Emprego, renda, formação e empreendedorismo local.',
+    'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?auto=format&fit=crop&w=420&q=80',
+    'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?auto=format&fit=crop&w=1200&q=85',
+    '#ffffff',
+    '#111111',
+    '#ca8a04',
+    'active'
+  ),
+  (
+    'sofia-campos',
+    'Sofia Campos',
+    'sofiacampos@nodus.com.br',
+    'Meio ambiente',
+    'Sustentabilidade, parques, lixo e cuidado urbano.',
+    'https://images.unsplash.com/photo-1607746882042-944635dfe10e?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1607746882042-944635dfe10e?auto=format&fit=crop&w=420&q=80',
+    'https://images.unsplash.com/photo-1607746882042-944635dfe10e?auto=format&fit=crop&w=1200&q=85',
+    '#ffffff',
+    '#111111',
+    '#16a34a',
+    'active'
+  ),
+  (
+    'diego-freitas',
+    'Diego Freitas',
+    'diegofreitas@nodus.com.br',
+    'Comunidade',
+    'Demandas locais, liderança comunitária e prioridades.',
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=420&q=80',
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=1200&q=85',
+    '#ffffff',
+    '#111111',
+    '#525252',
+    'active'
   )
-  returning id into v_customer_id;
+on conflict (slug) do update
+set name = coalesce(nullif(public.candidate_pages.name, ''), excluded.name),
+    email = coalesce(nullif(public.candidate_pages.email, ''), excluded.email),
+    role = coalesce(nullif(public.candidate_pages.role, ''), excluded.role),
+    bio = coalesce(nullif(public.candidate_pages.bio, ''), excluded.bio),
+    image_url = coalesce(nullif(public.candidate_pages.image_url, ''), excluded.image_url),
+    story_image_url = coalesce(nullif(public.candidate_pages.story_image_url, ''), excluded.story_image_url),
+    cover_image_url = coalesce(nullif(public.candidate_pages.cover_image_url, ''), excluded.cover_image_url),
+    text_color = coalesce(nullif(public.candidate_pages.text_color, ''), excluded.text_color),
+    background_color = coalesce(nullif(public.candidate_pages.background_color, ''), excluded.background_color),
+    accent_color = coalesce(nullif(public.candidate_pages.accent_color, ''), excluded.accent_color),
+    status = coalesce(nullif(public.candidate_pages.status, ''), excluded.status);
 
-  insert into public.sales (raffle_id, seller_id, customer_id, quantity, unit_price, total_amount)
-  values (v_raffle.id, v_seller.id, v_customer_id, p_quantity, v_raffle.ticket_price, v_raffle.ticket_price * p_quantity)
-  returning id into v_sale_id;
+update public.candidate_pages
+set name = 'Ana Martins',
+    email = 'anamartins@nodus.com.br',
+    role = 'Educação',
+    bio = 'Debate público sobre escolas, creches, transporte e aprendizagem.',
+    image_url = 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=900&q=85',
+    story_image_url = 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=420&q=80',
+    cover_image_url = 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=1200&q=85',
+    accent_color = '#0f766e'
+where slug = 'ana-martins';
 
-  select array_agg(n)
-  into v_numbers
-  from (
-    select n
-    from generate_series(1, v_raffle.total_numbers) as available(n)
-    where not exists (
-      select 1
-      from public.vouchers v
-      where v.raffle_id = v_raffle.id
-        and v.ticket_number = n
-    )
-    order by random()
-    limit p_quantity
-  ) available_numbers;
+update public.candidate_pages
+set name = 'Carlos Rocha',
+    email = 'carlosrocha@nodus.com.br',
+    role = 'Infraestrutura',
+    bio = 'Debate público sobre ruas, calçadas, iluminação e obras.',
+    image_url = 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=900&q=85',
+    story_image_url = 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=420&q=80',
+    cover_image_url = 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=1200&q=85',
+    accent_color = '#2563eb'
+where slug = 'carlos-rocha';
 
-  foreach v_number in array v_numbers loop
-    v_voucher_id := gen_random_uuid();
-    v_created_at := now();
-    select coalesce(record_hash, 'GENESIS')
-    into v_previous_hash
-    from public.vouchers
-    where raffle_id = v_raffle.id
-    order by created_at desc
-    limit 1;
+insert into storage.buckets (id, name, public)
+values ('avatars', 'avatars', true)
+on conflict (id) do nothing;
 
-    v_previous_hash := coalesce(v_previous_hash, 'GENESIS');
-    v_signature := public.sign_voucher(
-      v_raffle.secret_key,
-      v_voucher_id,
-      v_raffle.id,
-      v_sale_id,
-      v_seller.id,
-      v_customer_id,
-      v_number,
-      v_created_at,
-      v_previous_hash
-    );
-    v_record_hash := public.hash_voucher_record(
-      v_voucher_id,
-      v_raffle.id,
-      v_sale_id,
-      v_seller.id,
-      v_customer_id,
-      v_number,
-      v_created_at,
-      v_previous_hash,
-      v_signature
-    );
-    v_token := public.build_voucher_token(v_voucher_id, v_number, v_signature);
+insert into storage.buckets (id, name, public)
+values ('post-images', 'post-images', true)
+on conflict (id) do nothing;
 
-    insert into public.vouchers (
-      id,
-      raffle_id,
-      sale_id,
-      seller_id,
-      customer_id,
-      ticket_number,
-      token,
-      signature,
-      previous_hash,
-      record_hash,
-      created_at
-    )
-    values (
-      v_voucher_id,
-      v_raffle.id,
-      v_sale_id,
-      v_seller.id,
-      v_customer_id,
-      v_number,
-      v_token,
-      v_signature,
-      v_previous_hash,
-      v_record_hash,
-      v_created_at
-    );
+insert into storage.buckets (id, name, public)
+values ('candidate-images', 'candidate-images', true)
+on conflict (id) do nothing;
 
-    v_result := v_result || jsonb_build_array(
-      jsonb_build_object(
-        'id', v_voucher_id,
-        'ticket_number', v_number,
-        'token', v_token,
-        'created_at', v_created_at,
-        'customer_name', p_customer->>'name',
-        'customer_phone', p_customer->>'phone',
-        'customer_email', p_customer->>'email',
-        'customer_cpf', p_customer->>'cpf',
-        'seller_name', v_seller.name
-      )
-    );
-  end loop;
+insert into storage.buckets (id, name, public)
+values ('airdrop-images', 'airdrop-images', true)
+on conflict (id) do nothing;
 
-  return v_result;
-end;
-$$;
+drop policy if exists "authenticated users can upload avatars" on storage.objects;
+create policy "authenticated users can upload avatars"
+on storage.objects for insert
+to authenticated
+with check (bucket_id = 'avatars');
 
-create or replace function public.validate_voucher_token(p_token text)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_payload jsonb;
-  v_voucher public.vouchers;
-  v_raffle public.raffles;
-  v_customer public.customers;
-  v_seller public.sellers;
-  v_current_seller public.sellers;
-  v_expected_signature text;
-  v_expected_hash text;
-  v_ok boolean;
-  v_message text;
+drop policy if exists "avatar images are public" on storage.objects;
+create policy "avatar images are public"
+on storage.objects for select
+to public
+using (bucket_id = 'avatars');
+
+drop policy if exists "authenticated users can upload post images" on storage.objects;
+create policy "authenticated users can upload post images"
+on storage.objects for insert
+to authenticated
+with check (bucket_id = 'post-images');
+
+drop policy if exists "post images are public" on storage.objects;
+create policy "post images are public"
+on storage.objects for select
+to public
+using (bucket_id = 'post-images');
+
+drop policy if exists "authenticated users can upload candidate images" on storage.objects;
+create policy "authenticated users can upload candidate images"
+on storage.objects for insert
+to authenticated
+with check (bucket_id = 'candidate-images');
+
+drop policy if exists "candidate images are public" on storage.objects;
+create policy "candidate images are public"
+on storage.objects for select
+to public
+using (bucket_id = 'candidate-images');
+
+drop policy if exists "authenticated users can upload airdrop images" on storage.objects;
+create policy "authenticated users can upload airdrop images"
+on storage.objects for insert
+to authenticated
+with check (bucket_id = 'airdrop-images');
+
+drop policy if exists "airdrop images are public" on storage.objects;
+create policy "airdrop images are public"
+on storage.objects for select
+to public
+using (bucket_id = 'airdrop-images');
+
+do $$
 begin
-  select * into v_current_seller
-  from public.sellers
-  where user_id = auth.uid()
-    and active = true
-  limit 1;
-
-  if v_current_seller.id is null then
-    raise exception 'Vendedor sem acesso ativo.';
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'posts') then
+    alter publication supabase_realtime add table public.posts;
   end if;
 
-  begin
-    v_payload := convert_from(decode(p_token, 'base64'), 'utf8')::jsonb;
-  exception when others then
-    insert into public.validations (seller_id, token, result, message)
-    values (v_current_seller.id, p_token, 'invalid', 'Token ilegivel.');
-    return jsonb_build_object('ok', false, 'message', 'Token ilegivel.');
-  end;
-
-  select * into v_voucher
-  from public.vouchers
-  where id = (v_payload->>'id')::uuid
-    and ticket_number = (v_payload->>'n')::integer
-  limit 1;
-
-  if v_voucher.id is null then
-    insert into public.validations (seller_id, token, result, message)
-    values (v_current_seller.id, p_token, 'not_found', 'Voucher nao encontrado.');
-    return jsonb_build_object('ok', false, 'message', 'Voucher nao encontrado.');
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'comments') then
+    alter publication supabase_realtime add table public.comments;
   end if;
 
-  select * into v_raffle from public.raffles where id = v_voucher.raffle_id;
-  select * into v_customer from public.customers where id = v_voucher.customer_id;
-  select * into v_seller from public.sellers where id = v_voucher.seller_id;
-
-  v_expected_signature := public.sign_voucher(
-    v_raffle.secret_key,
-    v_voucher.id,
-    v_voucher.raffle_id,
-    v_voucher.sale_id,
-    v_voucher.seller_id,
-    v_voucher.customer_id,
-    v_voucher.ticket_number,
-    v_voucher.created_at,
-    v_voucher.previous_hash
-  );
-  v_expected_hash := public.hash_voucher_record(
-    v_voucher.id,
-    v_voucher.raffle_id,
-    v_voucher.sale_id,
-    v_voucher.seller_id,
-    v_voucher.customer_id,
-    v_voucher.ticket_number,
-    v_voucher.created_at,
-    v_voucher.previous_hash,
-    v_expected_signature
-  );
-
-  v_ok := (v_payload->>'sig') = v_expected_signature
-    and v_voucher.signature = v_expected_signature
-    and v_voucher.record_hash = v_expected_hash;
-
-  v_message := case when v_ok then 'Voucher valido.' else 'Voucher adulterado ou assinatura invalida.' end;
-
-  insert into public.validations (voucher_id, seller_id, token, result, message)
-  values (v_voucher.id, v_current_seller.id, p_token, case when v_ok then 'valid' else 'invalid' end, v_message);
-
-  return jsonb_build_object(
-    'ok', v_ok,
-    'message', v_message,
-    'ticket_number', v_voucher.ticket_number,
-    'customer_name', v_customer.name,
-    'seller_name', v_seller.name,
-    'status', v_voucher.status
-  );
-end;
-$$;
-
-create or replace function public.get_raffle_dashboard(p_raffle_id uuid default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_raffle public.raffles;
-  v_issued integer;
-  v_revenue numeric(10, 2);
-  v_ranking jsonb;
-begin
-  select * into v_raffle
-  from public.raffles
-  where id = coalesce(p_raffle_id, (select id from public.raffles where active = true order by created_at asc limit 1))
-  limit 1;
-
-  if v_raffle.id is null then
-    raise exception 'Rifa nao encontrada.';
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'likes') then
+    alter publication supabase_realtime add table public.likes;
   end if;
 
-  select count(*) into v_issued from public.vouchers where raffle_id = v_raffle.id;
-  select coalesce(sum(total_amount), 0) into v_revenue from public.sales where raffle_id = v_raffle.id;
-
-  select coalesce(jsonb_agg(row_data order by (row_data->>'position')::integer), '[]'::jsonb)
-  into v_ranking
-  from (
-    select jsonb_build_object(
-      'position', row_number() over (order by coalesce(vs.tickets_sold, 0) desc, coalesce(ss.revenue, 0) desc, s.name asc),
-      'seller_id', s.id,
-      'seller_name', s.name,
-      'tickets_sold', coalesce(vs.tickets_sold, 0),
-      'revenue', coalesce(ss.revenue, 0)
-    ) as row_data
-    from public.sellers s
-    left join (
-      select seller_id, count(*) as tickets_sold
-      from public.vouchers
-      where raffle_id = v_raffle.id
-      group by seller_id
-    ) vs on vs.seller_id = s.id
-    left join (
-      select seller_id, sum(total_amount) as revenue
-      from public.sales
-      where raffle_id = v_raffle.id
-      group by seller_id
-    ) ss on ss.seller_id = s.id
-    where s.active = true
-  ) ranked;
-
-  return jsonb_build_object(
-    'raffle_id', v_raffle.id,
-    'raffle_name', v_raffle.name,
-    'total_numbers', v_raffle.total_numbers,
-    'ticket_price', v_raffle.ticket_price,
-    'issued_count', v_issued,
-    'revenue_total', v_revenue,
-    'ranking', v_ranking
-  );
-end;
-$$;
-
-grant execute on function public.issue_vouchers(uuid, jsonb, integer) to authenticated;
-grant execute on function public.validate_voucher_token(text) to authenticated;
-grant execute on function public.get_raffle_dashboard(uuid) to authenticated;
-
-create or replace function public.get_admin_dashboard(p_raffle_id uuid default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_raffle public.raffles;
-  v_issued integer;
-  v_revenue numeric(10, 2);
-  v_customer_count integer;
-  v_sellers jsonb;
-  v_contacts jsonb;
-  v_recent_sales jsonb;
-begin
-  if not public.is_admin() then
-    raise exception 'Acesso restrito ao administrador.';
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'follows') then
+    alter publication supabase_realtime add table public.follows;
   end if;
 
-  select * into v_raffle
-  from public.raffles
-  where id = coalesce(p_raffle_id, (select id from public.raffles where active = true order by created_at asc limit 1))
-  limit 1;
-
-  if v_raffle.id is null then
-    raise exception 'Rifa nao encontrada.';
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'notifications') then
+    alter publication supabase_realtime add table public.notifications;
   end if;
 
-  select count(*) into v_issued from public.vouchers where raffle_id = v_raffle.id;
-  select coalesce(sum(total_amount), 0) into v_revenue from public.sales where raffle_id = v_raffle.id;
-  select count(distinct customer_id) into v_customer_count from public.sales where raffle_id = v_raffle.id;
-
-  select coalesce(jsonb_agg(row_data order by (row_data->>'position')::integer), '[]'::jsonb)
-  into v_sellers
-  from (
-    select jsonb_build_object(
-      'position', row_number() over (order by coalesce(vs.tickets_sold, 0) desc, coalesce(ss.revenue, 0) desc, s.name asc),
-      'seller_id', s.id,
-      'seller_name', s.name,
-      'sales_count', coalesce(ss.sales_count, 0),
-      'tickets_sold', coalesce(vs.tickets_sold, 0),
-      'revenue', coalesce(ss.revenue, 0)
-    ) as row_data
-    from public.sellers s
-    left join (
-      select seller_id, count(*) as tickets_sold
-      from public.vouchers
-      where raffle_id = v_raffle.id
-      group by seller_id
-    ) vs on vs.seller_id = s.id
-    left join (
-      select seller_id, count(*) as sales_count, sum(total_amount) as revenue
-      from public.sales
-      where raffle_id = v_raffle.id
-      group by seller_id
-    ) ss on ss.seller_id = s.id
-    where s.active = true
-  ) ranked;
-
-  select coalesce(jsonb_agg(row_data order by row_data->>'name'), '[]'::jsonb)
-  into v_contacts
-  from (
-    select jsonb_build_object(
-      'name', c.name,
-      'email', c.email,
-      'phone', c.phone,
-      'cpf', c.cpf,
-      'purchases', count(sa.id)
-    ) as row_data
-    from public.customers c
-    join public.sales sa on sa.customer_id = c.id and sa.raffle_id = v_raffle.id
-    where c.marketing_consent = true
-    group by c.id, c.name, c.email, c.phone, c.cpf
-  ) contacts;
-
-  select coalesce(jsonb_agg(row_data order by row_data->>'created_at' desc), '[]'::jsonb)
-  into v_recent_sales
-  from (
-    select jsonb_build_object(
-      'id', sa.id,
-      'created_at', sa.created_at,
-      'seller_name', s.name,
-      'customer_name', c.name,
-      'customer_email', c.email,
-      'customer_phone', c.phone,
-      'quantity', sa.quantity,
-      'total_amount', sa.total_amount
-    ) as row_data
-    from public.sales sa
-    join public.sellers s on s.id = sa.seller_id
-    join public.customers c on c.id = sa.customer_id
-    where sa.raffle_id = v_raffle.id
-    order by sa.created_at desc
-    limit 100
-  ) sales;
-
-  return jsonb_build_object(
-    'raffle_id', v_raffle.id,
-    'raffle_name', v_raffle.name,
-    'total_numbers', v_raffle.total_numbers,
-    'ticket_price', v_raffle.ticket_price,
-    'issued_count', v_issued,
-    'available_count', v_raffle.total_numbers - v_issued,
-    'revenue_total', v_revenue,
-    'customer_count', v_customer_count,
-    'sellers', v_sellers,
-    'contacts', v_contacts,
-    'recent_sales', v_recent_sales
-  );
-end;
-$$;
-
-grant execute on function public.get_admin_dashboard(uuid) to authenticated;
-
-create or replace function public.search_reprint_vouchers(
-  p_raffle_id uuid default null,
-  p_query text default ''
-)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_current_seller public.sellers;
-  v_raffle public.raffles;
-  v_query text;
-  v_digits text;
-  v_result jsonb;
-begin
-  select * into v_current_seller
-  from public.sellers
-  where user_id = auth.uid()
-    and active = true
-  limit 1;
-
-  if v_current_seller.id is null then
-    raise exception 'Vendedor sem acesso ativo.';
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'reports') then
+    alter publication supabase_realtime add table public.reports;
   end if;
 
-  select * into v_raffle
-  from public.raffles
-  where id = coalesce(p_raffle_id, (select id from public.raffles where active = true order by created_at asc limit 1))
-  limit 1;
-
-  if v_raffle.id is null then
-    raise exception 'Rifa nao encontrada.';
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'debates') then
+    alter publication supabase_realtime add table public.debates;
   end if;
 
-  v_query := lower(trim(coalesce(p_query, '')));
-  v_digits := regexp_replace(v_query, '\D', '', 'g');
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'profiles') then
+    alter publication supabase_realtime add table public.profiles;
+  end if;
 
-  select coalesce(jsonb_agg(row_data order by row_data->>'created_at' desc), '[]'::jsonb)
-  into v_result
-  from (
-    select jsonb_build_object(
-      'id', v.id,
-      'ticket_number', v.ticket_number,
-      'token', v.token,
-      'created_at', v.created_at,
-      'status', v.status,
-      'customer_name', c.name,
-      'customer_phone', c.phone,
-      'customer_email', c.email,
-      'customer_cpf', c.cpf,
-      'seller_name', s.name,
-      'sale_id', sa.id,
-      'sale_quantity', sa.quantity,
-      'sale_total', sa.total_amount
-    ) as row_data
-    from public.vouchers v
-    join public.sales sa on sa.id = v.sale_id
-    join public.customers c on c.id = v.customer_id
-    join public.sellers s on s.id = v.seller_id
-    where v.raffle_id = v_raffle.id
-      and (
-        public.is_admin()
-        or v.seller_id = v_current_seller.id
-      )
-      and (
-        v_query = ''
-        or lower(c.name) like '%' || v_query || '%'
-        or lower(c.email) like '%' || v_query || '%'
-        or regexp_replace(c.phone, '\D', '', 'g') like '%' || v_digits || '%'
-        or regexp_replace(c.cpf, '\D', '', 'g') like '%' || v_digits || '%'
-        or v.ticket_number::text = v_digits
-        or v.id::text = v_query
-        or sa.id::text = v_query
-      )
-    order by v.created_at desc
-    limit 250
-  ) vouchers;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'candidate_questions') then
+    alter publication supabase_realtime add table public.candidate_questions;
+  end if;
 
-  return v_result;
-end;
-$$;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'candidate_pages') then
+    alter publication supabase_realtime add table public.candidate_pages;
+  end if;
 
-grant execute on function public.search_reprint_vouchers(uuid, text) to authenticated;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'airdrops') then
+    alter publication supabase_realtime add table public.airdrops;
+  end if;
+
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'airdrop_views') then
+    alter publication supabase_realtime add table public.airdrop_views;
+  end if;
+end $$;

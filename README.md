@@ -1,66 +1,62 @@
-# Rifa Digital com Supabase
+# Mural Digital
 
-Sistema multi-vendedor para rifa digital com até 100.000 números, vouchers 58mm, ranking, painel ADM e validação por QR Code.
+Aplicacao Next.js + Supabase para usuarios criarem login, perfil com foto, publicarem fotos das ruas e iniciarem debates por tema.
 
-## O que esta versão faz
+## O que ja esta pronto
 
-- Login por vendedor usando Supabase Auth.
-- Todos os vendedores usam o mesmo banco de dados.
-- Os números são gerados no banco e não repetem entre vendedores.
-- Cada venda pode gerar vários vouchers para o mesmo cliente.
-- O vendedor escolhe qual rifa ativa vai vender antes de emitir vouchers.
-- O dono/admin pode criar várias rifas com foto enviada do computador, descrição do prêmio, valor, quantidade e data do sorteio.
-- O dono/admin tem painel separado com métricas, vendas por vendedor, vendas recentes e contatos autorizados para marketing.
-- O cadastro do cliente inclui autorização opcional para campanhas futuras.
-- O dono/admin pode cancelar vendas sem liberar os números para revenda.
-- O dono/admin pode exportar ranking, vendas, contatos e backup JSON.
-- Cada voucher tem QR Code com token assinado.
-- A validação consulta o Supabase e registra a tentativa no banco.
-- No celular, a validação também pode ler o QR Code pela câmera.
-- Impressão preparada para cupom de 58mm.
+- Cadastro e login com Supabase Auth.
+- Perfil com nome, bairro/regiao, bio e foto.
+- Upload de avatar no bucket `avatars`.
+- Publicacao com foto no bucket `post-images`.
+- Feed com filtro por tema e busca.
+- Curtidas.
+- Comentarios/debates por post.
+- Estrutura de banco com RLS em `supabase/schema.sql`.
+- Pronto para deploy na Vercel.
 
-## Arquivos principais
-
-- `index.html`: telas do aplicativo.
-- `styles.css`: layout e impressão 58mm.
-- `app.js`: login, emissão, ranking, validação, câmera QR e impressão.
-- `config.js`: URL e chave anônima do Supabase.
-- `supabase/schema.sql`: tabelas, políticas, ranking e funções do banco.
-- `supabase/admin-upgrade.sql`: atualização para painel ADM e consentimento de marketing.
-- `supabase/commercial-upgrade.sql`: cancelamento, configurações da rifa, relatórios, backup e LGPD operacional.
-- `supabase/multi-raffle-upgrade.sql`: várias rifas ativas, seleção de campanha e criação de rifas pelo ADM.
-- `supabase/storage-upgrade.sql`: bucket do Supabase Storage para upload da imagem da rifa.
-- `supabase/reset-database.sql`: limpa rifas, vendas, vouchers e imagens para recomeçar do zero.
-- `supabase/first-owner.sql`: cria o primeiro dono da rifa.
-- `supabase/functions/admin-create-seller/index.ts`: Edge Function para cadastrar vendedores.
-
-## Ordem para configurar no Supabase
+## Configurar Supabase
 
 1. Crie um projeto no Supabase.
-2. Abra o SQL Editor e rode `supabase/schema.sql`.
-3. Rode `supabase/admin-upgrade.sql`.
-4. Rode `supabase/commercial-upgrade.sql`.
-5. Rode `supabase/multi-raffle-upgrade.sql`.
-6. Rode `supabase/storage-upgrade.sql`.
-7. Em Authentication > Users, crie o usuário do dono da rifa.
-8. Copie o UUID desse usuário.
-9. Edite e rode `supabase/first-owner.sql`.
-10. Publique a Edge Function `admin-create-seller`.
-11. Em `config.js`, coloque a Project URL e a anon public key do Supabase.
-12. Publique os arquivos na Vercel.
+2. Va em `SQL Editor`.
+3. Cole e execute o arquivo `supabase/schema.sql`.
+4. Va em `Project Settings > API`.
+5. Copie:
+   - Project URL
+   - anon public key
 
-## Começar do zero
+## Variaveis de ambiente
 
-Para zerar as rifas de teste, rode `supabase/reset-database.sql` no SQL Editor.
+Crie um arquivo `.env.local` baseado em `.env.example`:
 
-Esse reset apaga rifas, clientes, vendas, vouchers, validações, logs e imagens enviadas, mas mantém usuários e vendedores/admins para você conseguir entrar novamente.
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-chave-anon-publica
+```
 
-Depois do reset, entre como admin e crie uma nova rifa pelo painel.
+Na Vercel, coloque essas mesmas variaveis em:
 
-## Segurança
+`Project Settings > Environment Variables`
 
-O navegador nunca gera números sozinho. A função `issue_vouchers` roda no banco, usa trava transacional e a tabela `vouchers` tem chave única em `(raffle_id, ticket_number)`. Mesmo se dois vendedores venderem ao mesmo tempo, o banco impede número duplicado.
+## Rodar local
 
-O QR Code contém um token assinado. A validação real depende da função `validate_voucher_token` no Supabase, por isso o sistema consegue consultar se o voucher existe, qual número pertence a ele e se já foi validado.
+```bash
+npm install
+npm run dev
+```
 
-Por segurança, venda cancelada não libera os números para revenda. Isso preserva a auditoria e evita repetição de número.
+Depois abra:
+
+```text
+http://localhost:3000
+```
+
+## Deploy na Vercel
+
+1. Suba o projeto para um repositorio GitHub.
+2. Importe o repositorio na Vercel.
+3. Configure as variaveis de ambiente.
+4. Deploy.
+
+## Observacao
+
+O arquivo `index.html` antigo continua na pasta como prototipo estatico, mas a aplicacao real agora e a estrutura Next.js em `app/`.
